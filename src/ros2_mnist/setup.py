@@ -11,8 +11,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name, ['settings.json']),
-        ('share/' + package_name, ['my_model.h5']),
+        ('share/' + package_name, ['settings.json'])
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -23,8 +22,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'predict = ros2_mnist.model_publish_function:main',
-            'image = ros2_mnist.image_publish_function:main',
+            'main = ros2_mnist.fl_server:main',
+            'client_1 = ros2_mnist.fl_client_1:main'
         ],
     },
 )
