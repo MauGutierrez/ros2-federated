@@ -1,25 +1,29 @@
-import rclpy # Python Client Library for ROS 2
-from rclpy.node import Node # Handles the creation of nodes
+import rclpy 
+from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
-from sensor_msgs.msg import Image
-from std_msgs.msg import Int64
 from example_interfaces.srv import Trigger
+from ros2_mnist.weights_subscriber import ModelSubscriber
 
-from cv_bridge import CvBridge
 import os
-import cv2
 import numpy as np
 import tensorflow as tf
+import threading
 
-class ModelPublisher(Node):
-    def __init__(self):
+class FederatedServer(Node):
+    def __init__(self, clients):
         super().__init__('model_publisher')
-        
-        # Flag to init the download of the model
-        self.model_ready = False
 
         # Initial model
-        self.model = self.build_model()
+        self.model_config = self.build_model()
+        
+        # List to store the mean of the weights
+        self.weights_mean = []
+
+        # List to store the addition of the clients weights
+        self.global_weights = []
+
+        # Number of clients
+        self.clients = clients
 
         # Service to send the model
         self.service_ = self.create_service(
@@ -34,29 +38,46 @@ class ModelPublisher(Node):
         model.add(tf.keras.layers.Dense(10, activation='softmax'))
 
         model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-
-        model.save("my_model.h5")
-
-        self.model_ready = True
-
-        return model
+        
+        config = model.to_json()
+        
+        return config
 
     def callback_send_model(self, request, response):
         response.success = True
-
-        if self.model_ready:
-            response.message = "Init download"
-        else:
-            response.message = "Model not ready yet"
+        response.message = str(self.model_config)
 
         return response
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ModelPublisher()
-    rclpy.spin(node)
+    
+    clients = 1
+    node = FederatedServer(clients)
+    client_subscriber = ModelSubscriber("client_A")
+
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.add_node(client_subscriber)
+
+    executor_thread = threading.Thread(target=executor.spin, daemon=True)
+    executor_thread.start()
+    rate = node.create_rate(2)
+
+    try:
+        while rclpy.ok():
+            rate.sleep()
+            
+            if client_subscriber.get_client_weights() != None:
+                continue
+
+
+    except KeyboardInterrupt:
+        pass
+
     rclpy.shutdown()
+    executor_thread.join()
 
 if __name__ == '__main__':
     main()

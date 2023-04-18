@@ -1,22 +1,25 @@
 import rclpy 
 from rclpy.node import Node 
 from ament_index_python.packages import get_package_share_directory
-from sensor_msgs.msg import Image
-from std_msgs.msg import Bool
 from example_interfaces.srv import Trigger
+from ros2_mnist.weights_publisher import ModelPublisher
 
-from cv_bridge import CvBridge
 import os
 import cv2
 import json
 import numpy as np
 import tensorflow as tf
 
+# Global Variables
+CLIENT_NAME = "client_A"
+
 class FederatedClientA(Node):
-    def __init__(self, model_config):
+    def __init__(self, model_config, client_name):
         super().__init__('federated_client_a')
         
         self.model = None
+
+        self.client_name = client_name
 
         # JSON file to store configuration parameters
         self.model_config = model_config
@@ -46,8 +49,8 @@ class FederatedClientA(Node):
         self.X_train, self.X_test = self.X_train / 255.0, self.X_test / 255.0
         
 
-    def build_model(self):
-        self.model = tf.keras.models.load_model("my_model.h5")
+    def build_model(self, model_config):
+        self.model = tf.keras.models.model_from_json(model_config)
         self.model.compile(
             optimizer=self.model_config['optimizer'],
             loss=self.model_config['loss'],
@@ -57,6 +60,15 @@ class FederatedClientA(Node):
     
     def train_model(self):
         self.model.fit(self.X_train, self.y_train, epochs=self.model_config['epochs'])
+    
+    def serialize_model_weights(self):
+        self.model_weights = np.array(self.model.get_weights())
+
+        weights = np.array_str(self.model_weights)
+
+        print(weights)
+
+        return weights
 
 def main():
     # Load model hyperparameters
@@ -73,21 +85,35 @@ def main():
         rclpy.init()
 
         # Init client object to handle communication with server
-        client = FederatedClientA(hyperparameters)
+        client = FederatedClientA(hyperparameters, CLIENT_NAME)
 
         # Preproces the dataset
         client.preproces_data(dataset)
 
         # Send an initial request to download the model from federated server 
         response = client.send_request()
-        if response.message == "Init download":
+        if response.success == True:
+            # Model configuration from json
+            model_config = response.message
+
             # Build the deep learning model
-            client.build_model()
+            client.build_model(model_config)
 
             # Train the deep learning model
             client.train_model()
 
-        client.destroy_node()
+            # Serialize and get model weights
+            weights = client.serialize_model_weights()
+
+            # Init Model publisher
+            publisher = ModelPublisher(CLIENT_NAME, weights)
+            
+            rclpy.spin(publisher)
+
+            # Explicity destroy nodes 
+            client.destroy_node()
+            publisher.destroy_node()
+
         rclpy.shutdown()
 
 if __name__ == '__main__':
