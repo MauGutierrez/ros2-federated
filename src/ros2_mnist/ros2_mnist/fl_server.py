@@ -2,32 +2,36 @@ import rclpy
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
 from example_interfaces.srv import Trigger
-from ros2_mnist.weights_subscriber import ModelSubscriber
+from my_interfaces.srv import SendLocalWeights
+from ros2_mnist.helper_functions import *
 
 import os
+import sys
 import numpy as np
 import tensorflow as tf
-import threading
+import json
 
 class FederatedServer(Node):
-    def __init__(self, clients):
+    def __init__(self, n_clients):
         super().__init__('model_publisher')
-
+        
         # Initial model
         self.model_config = self.build_model()
         
         # List to store the mean of the weights
-        self.weights_mean = []
-
-        # List to store the addition of the clients weights
-        self.global_weights = []
-
-        # Number of clients
-        self.clients = clients
+        self.fl_weights = None
+        
+        # Number of clients being executed
+        self.n_clients = n_clients
 
         # Service to send the model
-        self.service_ = self.create_service(
+        self.build_service_ = self.create_service(
             Trigger, "get_model", self.callback_send_model
+        )
+
+        # Service to get the average of the weights
+        self.update_weights_service_ = self.create_service(
+            SendLocalWeights, "update_weights", self.callback_update_weights
         )
 
     def build_model(self):
@@ -42,42 +46,60 @@ class FederatedServer(Node):
         config = model.to_json()
         
         return config
+    
+    def get_average_of_weights(self, request):
+        
+        weights = request["weights"]
+        weights = deserialize_array(weights)
+
+        if self.fl_weights == None:
+            self.fl_weights = np.copy(weights)
+        else:
+            self.fl_weights = self.fl_weights + weights
+
+        new_weights = self.fl_weights / self.n_clients
+
+        new_weights = serialize_array(new_weights)
+
+        message = {
+            "weights": new_weights
+        }
+
+        response = json.dumps(message)
+
+        return response
 
     def callback_send_model(self, request, response):
         response.success = True
         response.message = str(self.model_config)
 
         return response
+    
+    def callback_update_weights(self, request, response):
+        request_message = json.loads(request.message_request)
 
+        if request_message["weights"] != None:
+            data = self.get_average_of_weights(request_message) 
+            if data != None:
+                response.success = True
+                response.message_response = data
+            else:
+                response.success = False
+                response.message_response = "Couldn't calculate average of weights"
+        else:
+            response.success = False
+            response.message_response = "Wrong request"
+        
+        return response
 
 def main(args=None):
     rclpy.init(args=args)
     
-    clients = 1
-    node = FederatedServer(clients)
-    client_subscriber = ModelSubscriber("client_A")
-
-    executor = rclpy.executors.MultiThreadedExecutor()
-    executor.add_node(node)
-    executor.add_node(client_subscriber)
-
-    executor_thread = threading.Thread(target=executor.spin, daemon=True)
-    executor_thread.start()
-    rate = node.create_rate(2)
-
-    try:
-        while rclpy.ok():
-            rate.sleep()
-            
-            if client_subscriber.get_client_weights() != None:
-                continue
-
-
-    except KeyboardInterrupt:
-        pass
-
+    n_clients = 1
+    node = FederatedServer(n_clients)
+    rclpy.spin(node)
+    node.destroy_node()
     rclpy.shutdown()
-    executor_thread.join()
 
 if __name__ == '__main__':
     main()

@@ -2,7 +2,8 @@ import rclpy
 from rclpy.node import Node 
 from ament_index_python.packages import get_package_share_directory
 from example_interfaces.srv import Trigger
-from ros2_mnist.weights_publisher import ModelPublisher
+from my_interfaces.srv import SendLocalWeights
+from ros2_mnist.helper_functions import *
 
 import os
 import cv2
@@ -33,13 +34,26 @@ class FederatedClientA(Node):
         self.y_test = None
         self.y_train = None
 
-        self.cli = self.create_client(Trigger, "get_model")
-        while not self.cli.wait_for_service(timeout_sec=1.0):
+        # Client to request the initial model
+        self.model_cli = self.create_client(Trigger, "get_model")
+        while not self.model_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
-        self.req = Trigger.Request()
+        self.model_req = Trigger.Request()
 
-    def send_request(self):
-        self.future = self.cli.call_async(self.req)
+        # Client to request the update of the weights
+        self.weights_cli = self.create_client(SendLocalWeights, "update_weights")
+        while not self.weights_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.weights_req = SendLocalWeights.Request()
+
+    def build_model_request(self):
+        self.future = self.model_cli.call_async(self.model_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+    
+    def update_weights_request(self, message):
+        self.weights_req.message_request = message
+        self.future = self.weights_cli.call_async(self.weights_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
 
@@ -62,13 +76,23 @@ class FederatedClientA(Node):
         self.model.fit(self.X_train, self.y_train, epochs=self.model_config['epochs'])
     
     def serialize_model_weights(self):
-        self.model_weights = np.array(self.model.get_weights())
+        self.model_weights = self.model.get_weights()
 
-        weights = np.array_str(self.model_weights)
+        weights = serialize_array(self.model_weights)
+        message = {
+            "weights": weights
+        }
 
-        print(weights)
+        message = json.dumps(message)
 
-        return weights
+        return message
+    
+    def set_new_weights(self, weights):
+        data = json.loads(weights)
+        new_weights = data["weights"]
+        new_weights = deserialize_array(new_weights)
+
+        self.model.set_weights(new_weights)
 
 def main():
     # Load model hyperparameters
@@ -91,7 +115,7 @@ def main():
         client.preproces_data(dataset)
 
         # Send an initial request to download the model from federated server 
-        response = client.send_request()
+        response = client.build_model_request()
         if response.success == True:
             # Model configuration from json
             model_config = response.message
@@ -103,16 +127,19 @@ def main():
             client.train_model()
 
             # Serialize and get model weights
-            weights = client.serialize_model_weights()
-
-            # Init Model publisher
-            publisher = ModelPublisher(CLIENT_NAME, weights)
+            request = client.serialize_model_weights()
             
-            rclpy.spin(publisher)
+            # Send a request to update the local weights
+            response = client.update_weights_request(request)
+
+            if response.success == True:
+                client.set_new_weights(response.message_response)
+
+            # Set new local weights that have been received from federated server
+            client.set_new_weights(response.message_response)
 
             # Explicity destroy nodes 
             client.destroy_node()
-            publisher.destroy_node()
 
         rclpy.shutdown()
 
