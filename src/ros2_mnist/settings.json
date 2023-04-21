@@ -1,14 +1,9 @@
 {
-    "camera_settings" : {
-        "device_index" : 0,
-        "topic" : "racecar/camera",
-        "queue_size" : 1,
-        "period" : 0.1
-    },
     "model_hyperparameters" : {
         "optimizer" : "adam",
         "loss" : "sparse_categorical_crossentropy",
         "metrics" : ["accuracy"],
-        "epochs" : 1
+        "epochs" : 1,
+        "iterations": 5
     }
 }

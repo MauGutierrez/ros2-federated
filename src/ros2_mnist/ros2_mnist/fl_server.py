@@ -13,7 +13,7 @@ import json
 
 class FederatedServer(Node):
     def __init__(self, n_clients):
-        super().__init__('model_publisher')
+        super().__init__('federated_server')
         
         # Initial model
         self.model_config = self.build_model()
@@ -70,8 +70,13 @@ class FederatedServer(Node):
         return response
 
     def callback_send_model(self, request, response):
-        response.success = True
-        response.message = str(self.model_config)
+        if self.model_config != None:
+            response.success = True
+            response.message = str(self.model_config)
+        
+        else:
+            response.success = False
+            response.message = "Model not ready yet"
 
         return response
     

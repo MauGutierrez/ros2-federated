@@ -73,7 +73,10 @@ class FederatedClientA(Node):
         self.model.summary()
     
     def train_model(self):
-        self.model.fit(self.X_train, self.y_train, epochs=self.model_config['epochs'])
+        self.history = self.model.fit(self.X_train, self.y_train, epochs=self.model_config['epochs'])
+    
+    def monitor_training(self):
+        return self.history.history['loss']
     
     def serialize_model_weights(self):
         self.model_weights = self.model.get_weights()
@@ -105,6 +108,7 @@ def main():
     with open(settings) as fp:
         content = json.load(fp)
         hyperparameters = content['model_hyperparameters']
+        iterations = hyperparameters['iterations']
 
         rclpy.init()
 
@@ -123,23 +127,23 @@ def main():
             # Build the deep learning model
             client.build_model(model_config)
 
-            # Train the deep learning model
-            client.train_model()
+            for i in range(iterations):        
+                # Train the deep learning model
+                client.train_model()
 
-            # Serialize and get model weights
-            request = client.serialize_model_weights()
-            
-            # Send a request to update the local weights
-            response = client.update_weights_request(request)
+                # Serialize and get model weights
+                request = client.serialize_model_weights()
+                
+                # Send a request to update the local weights
+                response = client.update_weights_request(request)
 
-            if response.success == True:
-                client.set_new_weights(response.message_response)
+                if response.success == True:
+                    # Set new local weights that have been received from federated server
+                    client.set_new_weights(response.message_response)
+                
 
-            # Set new local weights that have been received from federated server
-            client.set_new_weights(response.message_response)
-
-            # Explicity destroy nodes 
-            client.destroy_node()
+        # Explicity destroy nodes 
+        client.destroy_node()
 
         rclpy.shutdown()
 
