@@ -23,7 +23,8 @@ setup(
     entry_points={
         'console_scripts': [
             'main = ros2_mnist.fl_server:main',
-            'client_1 = ros2_mnist.fl_client_1:main'
+            'client_1 = ros2_mnist.fl_client_1:main',
+            'client_2 = ros2_mnist.fl_client_2:main'
         ],
     },
 )

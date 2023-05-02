@@ -18,11 +18,11 @@ import numpy as np
 import tensorflow as tf
 
 # Global Variables
-CLIENT_NAME = "client_1"
+CLIENT_NAME = "client_2"
 
 class FederatedClientA(Node):
     def __init__(self, model_config, client_name):
-        super().__init__('federated_client_1')
+        super().__init__('federated_client_2')
         
         self.model = None
 
@@ -40,13 +40,13 @@ class FederatedClientA(Node):
         self.y_test = None
         self.y_train = None
 
-        # Client to request the initial model
+        # Request the initial model
         self.model_cli = self.create_client(Trigger, "get_model")
         while not self.model_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.model_req = Trigger.Request()
 
-        # Client to request the update of the weights
+        # Request the update of the weights
         self.weights_cli = self.create_client(SendLocalWeights, "update_weights")
         while not self.weights_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')

@@ -4,19 +4,21 @@ from ament_index_python.packages import get_package_share_directory
 from example_interfaces.srv import Trigger
 from my_interfaces.srv import SendLocalWeights
 from ros2_mnist.helper_functions import *
+from ros2_mnist.keras_models import *
 
 import os
 import sys
 import numpy as np
-import tensorflow as tf
 import json
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 class FederatedServer(Node):
-    def __init__(self, n_clients):
+    def __init__(self, n_clients, selected_model):
         super().__init__('federated_server')
         
         # Initial model
-        self.model_config = self.build_model()
+        self.model_config = self.build_model(selected_model)
         
         # List to store the mean of the weights
         self.fl_weights = None
@@ -34,17 +36,9 @@ class FederatedServer(Node):
             SendLocalWeights, "update_weights", self.callback_update_weights
         )
 
-    def build_model(self):
-        model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Flatten(input_shape=(28, 28)))
-        model.add(tf.keras.layers.Dense(128, activation='relu'))
-        model.add(tf.keras.layers.Dropout(0.2))
-        model.add(tf.keras.layers.Dense(10, activation='softmax'))
+    def build_model(self, selected_model):
+        config = build_model(selected_model)
 
-        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-        
-        config = model.to_json()
-        
         return config
     
     def get_average_of_weights(self, request):
@@ -82,8 +76,10 @@ class FederatedServer(Node):
     
     def callback_update_weights(self, request, response):
         request_message = json.loads(request.message_request)
-
+        
         if request_message["weights"] != None:
+            self.get_logger().info('Incoming request from: ' + request_message["client"])
+
             data = self.get_average_of_weights(request_message) 
             if data != None:
                 response.success = True
@@ -98,10 +94,20 @@ class FederatedServer(Node):
         return response
 
 def main(args=None):
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            tf.config.experimental.set_virtual_device_configuration(
+                gpus[0],[tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)])
+        except RuntimeError as e:
+            print(e)
+            
     rclpy.init(args=args)
     
-    n_clients = 1
-    node = FederatedServer(n_clients)
+    n_clients = int(sys.argv[1])
+    model_selected = sys.argv[2] 
+
+    node = FederatedServer(n_clients, model_selected)
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
