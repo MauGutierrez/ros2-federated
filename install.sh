@@ -1,6 +1,3 @@
 #!/bin/bash
-echo '/opt/ros/humble/setup.bash'
-source /opt/ros/humble/setup.bash
-
-echo './install/setup.bash'
+echo 'Source Setup bash script'
 source ./install/setup.bash

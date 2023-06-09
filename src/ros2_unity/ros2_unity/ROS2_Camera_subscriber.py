@@ -10,11 +10,13 @@ class CameraSubscriber_1(threading.Thread):
     def __init__(self, node):
         threading.Thread.__init__(self)
         self.node = node
-        self.subscription_topic_1 = self.node.create_subscription(Image, TOPIC_ROBOT_1, self.callback_topic_1, 10)
+        self.subscription_topic_1 = self.node.create_subscription(Image, TOPIC_ROBOT_1, self.callback_topic_1, 30)
+        self.publisher_image_right_ = self.node.create_publisher(Image, '/camera/right', 1)
 
     def callback_topic_1(self, image_msg):
         # self.node.get_logger().info('I heard: "%s"' % image_msg.data)
         self.node.get_logger().info('I heard topic: "%s"' % TOPIC_ROBOT_1)
+        self.publisher_image_right_.publish(image_msg)
     
     def run(self):
         while rclpy.ok():
@@ -24,11 +26,13 @@ class CameraSubscriber_2(threading.Thread):
     def __init__(self, node):
         threading.Thread.__init__(self)
         self.node = node
-        self.subscription_topic_2 = self.node.create_subscription(Image, TOPIC_ROBOT_2, self.callback_topic_2, 10)
+        self.subscription_topic_2 = self.node.create_subscription(Image, TOPIC_ROBOT_2, self.callback_topic_2, 30)
+        self.publisher_image_left_ = self.node.create_publisher(Image, '/camera/left', 1)
 
     def callback_topic_2(self, image_msg):
         # self.node.get_logger().info('I heard: "%s"' % image_msg.data)
         self.node.get_logger().info('I heard topic: "%s"' % TOPIC_ROBOT_2)
+        self.publisher_image_left_.publish(image_msg)
     
     def run(self):
         while rclpy.ok():
