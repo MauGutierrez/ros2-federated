@@ -1,4 +1,0 @@
-string message_request  # string to request the update of the weights 
----
-bool success    # indicate successful run of triggered service
-string message_response # string reponse that contains the new weights
