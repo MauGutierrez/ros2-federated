@@ -9,6 +9,7 @@ from cv_bridge import CvBridge
 from ros2_mnist.helper_functions import *
 from keras.datasets import cifar10
 from keras.datasets import mnist
+from sklearn.metrics import confusion_matrix
 
 import os
 
@@ -21,9 +22,11 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import zipfile
-import pandas
+import pandas as pd
+import seaborn as sn
 import io
 from PIL import Image
+import time
 
 # Global Variables
 CLIENT_NAME = "client_1"
@@ -54,6 +57,9 @@ class FederatedClientA(Node):
         # Flag to indicate that the deep learning model is ready to predict 
         self.model_ready = False
 
+        self.predictions_list = []
+        self.labels_list = []
+
         self.subscription_camera_topic = self.create_subscription(UnityImage, TOPIC_CAMERA, self.callback_camera, 1)
 
         # Client to request the initial model
@@ -62,11 +68,17 @@ class FederatedClientA(Node):
             self.get_logger().info('service not available, waiting again...')
         self.model_req = Trigger.Request()
 
-        # Client to request the update of the weights
+        # Client to request the addition of the weights
         self.weights_cli = self.create_client(SendLocalWeights, "update_weights")
         while not self.weights_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.weights_req = SendLocalWeights.Request()
+
+        # Client to request the update of the weights
+        self.update_cli = self.create_client(SendLocalWeights, "get_weights")
+        while not self.update_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.update_req = SendLocalWeights.Request()
 
     def build_model_request(self):
         self.future = self.model_cli.call_async(self.model_req)
@@ -76,6 +88,11 @@ class FederatedClientA(Node):
     def update_weights_request(self, message):
         self.weights_req.message_request = message
         self.future = self.weights_cli.call_async(self.weights_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+    
+    def get_weights_request(self):
+        self.future = self.update_cli.call_async(self.update_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
 
@@ -167,12 +184,12 @@ class FederatedClientA(Node):
             dataset_test = os.path.join(get_package_share_directory('ros2_mnist'), "dataset/test.csv")
 
             # Train dataset
-            df = pandas.read_csv(dataset_train)
+            df = pd.read_csv(dataset_train)
             images_train = df['image_paths']
             labels_train = df['labels']
 
             # Test dataset
-            df = pandas.read_csv(dataset_test)
+            df = pd.read_csv(dataset_test)
             images_test = df['image_paths']
             labels_test = df['labels']
             
@@ -188,27 +205,43 @@ class FederatedClientA(Node):
 
     def callback_camera(self, image_msg):        
         if self.model_ready:
-            # Get the label of the image
-            label = image_msg.label
-            self.get_logger().info('I heard: "%s"' % label)
+            if image_msg.label.data != '':
+                # Get the label of the image
+                label = int(image_msg.label.data)
+                
+                self.get_logger().info('I heard: "%s"' % label)
 
-            # Convert image to cv_bridge
-            cv_image = self._cv_bridge.imgmsg_to_cv2(image_msg.unity_image, "bgr8")
-            cv_image_rotated = cv2.rotate(cv_image, cv2.ROTATE_180)
-            cv_image_flipped = cv2.flip(cv_image_rotated, 1)
+                # Convert image to cv_bridge
+                cv_image = self._cv_bridge.imgmsg_to_cv2(image_msg.unity_image, "bgr8")
+                cv_image_rotated = cv2.rotate(cv_image, cv2.ROTATE_180)
+                cv_image_flipped = cv2.flip(cv_image_rotated, 1)
 
-            cv_image_gray = cv2.cvtColor(cv_image_flipped, cv2.COLOR_RGB2GRAY)
-            ret, cv_image_binary = cv2.threshold(cv_image_gray, 128, 255, cv2.THRESH_BINARY_INV)  
-            cv_image_28 = cv2.resize(cv_image_binary, (28 , 28))     
-            np_image = np.reshape(cv_image_28, (1, 28, 28, 1))
+                cv_image_gray = cv2.cvtColor(cv_image_flipped, cv2.COLOR_RGB2GRAY)
+                ret, cv_image_binary = cv2.threshold(cv_image_gray, 128, 255, cv2.THRESH_BINARY_INV)  
+                cv_image_28 = cv2.resize(cv_image_binary, (28 , 28))     
+                np_image = np.reshape(cv_image_28, (1, 28, 28, 1))
 
-            prediction = self.model.predict(np_image)
+                prediction = self.model.predict(np_image)
 
-            answer = np.argmax(prediction, 1)
-            self.get_logger().info('Number is: %d' % answer)
-            # predict the number
-            cv2.imshow("camera 1", cv_image_flipped)
-            cv2.waitKey(1)
+                answer = np.argmax(prediction, 1)
+                
+                self.labels_list.append(label)
+                self.predictions_list.append(answer)
+
+                self.get_logger().info('Number is: %d' % answer)
+                # predict the number
+                # cv2.imshow("camera 1", cv_image_flipped)
+                # cv2.waitKey(1)
+    
+    def get_confusion_matrix(self):
+        self.labels_list = np.array(self.labels_list)
+        self.predictions_list = np.array(self.predictions_list)
+
+        confusion = confusion_matrix(self.labels_list, self.predictions_list)
+        df_cm = pd.DataFrame(confusion, index = [i for i in range(len(confusion))], columns = [i for i in range(len(confusion))])
+        plt.figure(figsize = (10,7))
+        cfm_plot = sn.heatmap(df_cm, annot=True)
+        cfm_plot.figure.savefig("cfm1.png")
 
 def main():
     # gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -258,19 +291,32 @@ def main():
                 
                 # Send a request to update the local weights
                 response = client.update_weights_request(request)
-
+                
                 if response.success == True:
-                    # Set new local weights that have been received from federated server
-                    client.set_new_weights(response.message_response)
+            
+                    while rclpy.ok():
+                        weights_update = client.get_weights_request()
+                        if weights_update.success is False:
+                            print(weights_update.message_response)
+                            time.sleep(1)
+                        else:
+                            # Set new local weights that have been received from federated server
+                            client.set_new_weights(weights_update.message_response)
+                            break
             
             # Evaluate deep learning model
             client.evaluate_model()
 
-            # Deep Learning Model is ready to predict
-            client.model_ready = True
-            # Subscribe to the camera images node
-            rclpy.spin(client)
+            # # Deep Learning Model is ready to predict
+            # client.model_ready = True
+            
+            # # Subscribe to the camera images node
+            # while rclpy.ok() and i < 50:
+            #     rclpy.spin_once(client)
+            #     i += 1
 
+            # client.get_confusion_matrix()
+        
         # Explicity destroy nodes 
         client.destroy_node()
 
