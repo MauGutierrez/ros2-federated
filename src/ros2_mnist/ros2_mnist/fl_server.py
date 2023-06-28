@@ -113,6 +113,7 @@ class FederatedServer(Node):
             data = self.get_average()
             response.success = True
             response.message_response = data
+            self.weights = None
         
         return response
 

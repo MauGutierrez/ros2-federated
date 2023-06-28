@@ -5,6 +5,7 @@ from example_interfaces.srv import Trigger
 from my_interfaces.srv import SendLocalWeights
 from my_interfaces.msg import UnityImage
 from sensor_msgs.msg import Image
+from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from ros2_mnist.helper_functions import *
 from keras.datasets import cifar10
@@ -31,6 +32,7 @@ import time
 # Global Variables
 CLIENT_NAME = "client_1"
 TOPIC_CAMERA = "/camera_robot/Right"
+TOPIC_STOP = "/camera_right"
 
 class FederatedClientA(Node):
     def __init__(self, model_config, client_name):
@@ -61,6 +63,10 @@ class FederatedClientA(Node):
         self.labels_list = []
 
         self.subscription_camera_topic = self.create_subscription(UnityImage, TOPIC_CAMERA, self.callback_camera, 1)
+        self.subscription_stop_validation = self.create_subscription(Bool, TOPIC_STOP, self.callback_stop, 1)
+        
+        # Flag to stop the validation process
+        self.stop_flag = False
 
         # Client to request the initial model
         self.model_cli = self.create_client(Trigger, "get_model")
@@ -153,7 +159,7 @@ class FederatedClientA(Node):
     
     def evaluate_model(self):
         test_loss, test_acc = self.model.evaluate(self.X_test, self.y_test, verbose=2)
-        print('\nTest accuracy:', test_acc)
+        self.get_logger().info(f'Test accuracy: is: {test_acc}')
 
     def monitor_training(self):
         return self.history.history['loss']
@@ -200,7 +206,7 @@ class FederatedClientA(Node):
             self.dataset = cifar10.load_data()
         
         else:
-            print("No Dataset found. Try with a different one.")
+            self.get_logger().info("No Dataset found. Try with a different one.")
             exit(1)
 
     def callback_camera(self, image_msg):        
@@ -216,32 +222,38 @@ class FederatedClientA(Node):
                 cv_image_rotated = cv2.rotate(cv_image, cv2.ROTATE_180)
                 cv_image_flipped = cv2.flip(cv_image_rotated, 1)
 
-                cv_image_gray = cv2.cvtColor(cv_image_flipped, cv2.COLOR_RGB2GRAY)
-                ret, cv_image_binary = cv2.threshold(cv_image_gray, 128, 255, cv2.THRESH_BINARY_INV)  
-                cv_image_28 = cv2.resize(cv_image_binary, (28 , 28))     
-                np_image = np.reshape(cv_image_28, (1, 28, 28, 1))
+                cv_image_gray = cv2.cvtColor(cv_image_flipped, cv2.COLOR_BGR2GRAY)
+                cv_image_28 = cv2.resize(cv_image_gray, (28 , 28))     
+                np_image = cv_image_28.reshape((1, 28, 28, 1))
 
                 prediction = self.model.predict(np_image)
 
-                answer = np.argmax(prediction, 1)
+                answer = np.argmax(prediction, 1)[0]
                 
                 self.labels_list.append(label)
                 self.predictions_list.append(answer)
 
                 self.get_logger().info('Number is: %d' % answer)
                 # predict the number
-                # cv2.imshow("camera 1", cv_image_flipped)
+                # cv2.imshow("camera 1", cv_image_gray)
                 # cv2.waitKey(1)
+            else:
+                self.get_logger().info('Waiting for images')
     
     def get_confusion_matrix(self):
+        labels = set(self.labels_list) | set(self.predictions_list)
+        labels = list(labels)
+
         self.labels_list = np.array(self.labels_list)
         self.predictions_list = np.array(self.predictions_list)
 
         confusion = confusion_matrix(self.labels_list, self.predictions_list)
-        df_cm = pd.DataFrame(confusion, index = [i for i in range(len(confusion))], columns = [i for i in range(len(confusion))])
         plt.figure(figsize = (10,7))
-        cfm_plot = sn.heatmap(df_cm, annot=True)
+        cfm_plot = sn.heatmap(confusion, xticklabels=labels, yticklabels=labels, annot=True)
         cfm_plot.figure.savefig("cfm1.png")
+    
+    def callback_stop(self, stop_flag):
+        self.stop_flag = stop_flag.data
 
 def main():
     # gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -307,16 +319,18 @@ def main():
             # Evaluate deep learning model
             client.evaluate_model()
 
-            # # Deep Learning Model is ready to predict
-            # client.model_ready = True
+            # Deep Learning Model is ready to predict
+            client.model_ready = True
             
-            # # Subscribe to the camera images node
-            # while rclpy.ok() and i < 50:
-            #     rclpy.spin_once(client)
-            #     i += 1
-
-            # client.get_confusion_matrix()
-        
+            # Subscribe to the camera images node
+            while rclpy.ok():
+                if client.stop_flag is False:
+                    rclpy.spin_once(client)
+                
+                else:
+                    client.get_confusion_matrix()
+                    break
+                    
         # Explicity destroy nodes 
         client.destroy_node()
 
