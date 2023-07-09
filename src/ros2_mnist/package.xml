@@ -7,6 +7,8 @@
   <maintainer email="mauricio@todo.todo">mauricio</maintainer>
   <license>TODO: License declaration</license>
 
+  <exec_depend>my_interfaces</exec_depend>
+
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>ament_index_python</depend>
