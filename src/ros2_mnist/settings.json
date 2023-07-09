@@ -5,6 +5,6 @@
         "loss" : "sparse_categorical_crossentropy",
         "metrics" : ["accuracy"],
         "epochs" : 10,
-        "iterations": 3
+        "iterations": 2
     }
 }

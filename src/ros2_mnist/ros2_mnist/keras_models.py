@@ -2,7 +2,7 @@ import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout
 
-def build_model(selected_model):
+def get_model_from_json(selected_model: str) -> object:
     json_model = None
     if selected_model == "mnist":
         json_model = build_mnist_model()
@@ -12,7 +12,7 @@ def build_model(selected_model):
 
     return json_model
 
-def build_mnist_model():
+def build_mnist_model() -> object:
     model = Sequential()
     model.add(Flatten(input_shape=(28, 28)))
     model.add(Dense(128, activation='relu'))
@@ -22,7 +22,7 @@ def build_mnist_model():
 
     return model.to_json()
 
-def build_cifar_10_model():
+def build_cifar_10_model() -> object:
     model = Sequential()
     model.add(Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_uniform', padding='same', input_shape=(32, 32, 3)))
     model.add(Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_uniform', padding='same'))
