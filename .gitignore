@@ -1,5 +1,7 @@
 build
 install
 log
-my_model.h5
+dataset
+results
+scripts
 .vscode

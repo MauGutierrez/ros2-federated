@@ -14,9 +14,9 @@ Project is created with:
 * Tmux (optional)
 
 # Setup
-To run this project, and go to the root of the project:
+To run this project, go to the root:
 ```
-$ cd ros2_mnist
+$ cd ros2_federated
 ```
 Once there, clean and compile the project:
 ```
@@ -25,7 +25,7 @@ $ . build.sh
 ```
 Now that the project is already compiled, execute the Federated Server with the next command, passing as argument the number of clients that will be working, and the selected dataset:
 ```
-$ ros2 run ros2_mnist main 1 mnist
+$ ros2 run ros2_federated main 1 mnist
 ```
 On our example, we are specifying only one client and mnist dataset.
 
@@ -36,7 +36,7 @@ $ . init.sh
 
 Then, execute the next command and pass as argument the same dataset for the Federated Server:
 ```
-$ ros2 run ros2_mnist client_1 mnist
+$ ros2 run ros2_federated client_1 mnist
 ```
 
 If you were to use more clients, don't forget to specify that in the commands to execute the Federated Server and the clients. Also, don't forget to use the same dataset for the Federated Server and the client.
