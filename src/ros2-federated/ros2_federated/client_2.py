@@ -12,7 +12,7 @@ from ros2_federated.ros2_topics import Topics
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 # ROS TOPICS
-CLIENT_NAME = "client_1"
+CLIENT_NAME = "client_2"
 CAMERA = "/camera_robot"
 STOP_SIGNAL = "/stop_signal"
 
@@ -24,7 +24,7 @@ def main():
     topics.STOP_SIGNAL = STOP_SIGNAL
 
     # Load general settings saved in json file
-    settings = os.path.join(get_package_share_directory('ros2_federated'), "settings.json")
+    settings = os.path.join(get_package_share_directory('ros2_federated'), 'config/settings.json')
 
     with open(settings) as fp:
         content = json.load(fp)
@@ -36,11 +36,9 @@ def main():
 
         # Init client object to handle communication with server
         client = FederatedClient(hyperparameters, topics)
-        
-        selected_dataset = sys.argv[1]
 
         # Load test dataset
-        client.load_local_dataset(selected_dataset)
+        client.load_local_dataset()
 
         # Preproces dataset
         client.preproces_dataset()

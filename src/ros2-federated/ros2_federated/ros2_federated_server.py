@@ -16,17 +16,24 @@ class FederatedServer(Node):
 
     _clients_counter = 0
     
-    def __init__(self, n_clients, selected_model):
+    def __init__(self):
         super().__init__('federated_server')
-        
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('n_clients', rclpy.Parameter.Type.INTEGER),
+                ('dataset', rclpy.Parameter.Type.STRING)
+            ]
+        )
+
+        self.n_clients = self.get_parameter('n_clients').get_parameter_value().integer_value
+        self.selected_dataset = self.get_parameter('dataset').get_parameter_value().string_value
+
         # Initial model
-        self.model_config = self.get_model_config(selected_model)
+        self.model_config = self.get_model_config(self.selected_dataset)
         
         # List to store the mean of the weights
         self.fl_weights = None
-
-        # Number of clients being executed
-        self.n_clients = n_clients
 
         # Service to send the model
         self.build_service_ = self.create_service(
@@ -44,6 +51,7 @@ class FederatedServer(Node):
         )
 
     def get_model_config(self, selected_model: str) -> object:
+        self.get_logger().info('Model: ' + selected_model)
         config = get_model_from_json(selected_model)
 
         return config
@@ -124,11 +132,7 @@ def main(args=None):
     #         print(e)
             
     rclpy.init(args=args)
-    
-    n_clients = int(sys.argv[1])
-    model_selected = sys.argv[2] 
-
-    node = FederatedServer(n_clients, model_selected)
+    node = FederatedServer()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

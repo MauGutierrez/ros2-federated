@@ -1,4 +1,4 @@
-# ros2-mnist
+# ros2-federated
 
 
 # Introduction

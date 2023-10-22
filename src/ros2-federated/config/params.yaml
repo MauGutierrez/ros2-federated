@@ -1,0 +1,12 @@
+federated_server:
+  ros__parameters:
+    n_clients: 2
+    dataset: "mnist"
+
+client_1:
+  ros__parameters:
+    dataset: "mnist"
+
+client_2:
+  ros__parameters:
+    dataset: "mnist"

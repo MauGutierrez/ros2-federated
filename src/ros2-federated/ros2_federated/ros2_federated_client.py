@@ -31,12 +31,19 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 class FederatedClient(Node):
     def __init__(self, model_config, topics: Topics):
         super().__init__(topics.CLIENT_NAME)
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('dataset', rclpy.Parameter.Type.STRING)
+            ]
+        )
+
+        self.dataset_name = self.get_parameter('dataset').get_parameter_value().string_value
 
         self.model = None
         self.client_name = topics.CLIENT_NAME
         self.model_config = model_config
         self.dataset = None
-        self.dataset_name = None
         self.train_dataset = None
         self.test_dataset = None
         self.history = []
@@ -108,18 +115,14 @@ class FederatedClient(Node):
                 
                 self.labels_list.append(label)
                 self.predictions_list.append(answer)
-
-                self.get_logger().info('True Label is: "%s"' % label)
-                self.get_logger().info('Predicted Number is: %d' % answer)
+                self.get_logger().info(f'Predicted Number: {answer}, True Label: {label}')
             else:
                 self.get_logger().info('Waiting for images')
     
     def callback_stop(self, stop_flag):
         self.stop_flag = stop_flag.data
 
-    def load_local_dataset(self, selected_dataset: str) -> None:
-        self.dataset_name = selected_dataset
-
+    def load_local_dataset(self) -> None:
         if self.dataset_name == "mnist":
             # csv files that contain the train and test dataset
             path = "./dataset"

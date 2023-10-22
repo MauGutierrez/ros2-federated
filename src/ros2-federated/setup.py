@@ -1,7 +1,9 @@
-from setuptools import find_packages
 from setuptools import setup
 
+import os
+
 package_name = 'ros2_federated'
+share_dir = os.path.join("share", package_name)
 
 setup(
     name=package_name,
@@ -11,7 +13,10 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name, ['settings.json'])
+        (os.path.join(share_dir, "config"), ["config/settings.json"]),
+        (os.path.join(share_dir, "config"), ["config/params.yaml"]),
+        (os.path.join(share_dir, "launch"), ["launch/clients.launch.py"]),
+        (os.path.join(share_dir, "launch"), ["launch/server.launch.py"])
     ],
     install_requires=['setuptools'],
     zip_safe=True,
