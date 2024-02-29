@@ -6,8 +6,8 @@ import json
 
 from rclpy.node import Node 
 from ament_index_python.packages import get_package_share_directory
-from ros2_federated.ros2_federated_client import FederatedClient
-from ros2_federated.ros2_topics import Topics
+from ros2_federated_agents.ros2_federated_client import FederatedClient
+from ros2_federated_agents.ros2_topics import Topics
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
@@ -24,7 +24,7 @@ def main():
     topics.STOP_SIGNAL = STOP_SIGNAL
 
     # Load general settings saved in json file
-    settings = os.path.join(get_package_share_directory('ros2_federated'), 'config/settings.json')
+    settings = os.path.join(get_package_share_directory('ros2_federated_agents'), 'config/settings.json')
 
     with open(settings) as fp:
         content = json.load(fp)
@@ -36,14 +36,21 @@ def main():
 
         # Init client object to handle communication with server
         client = FederatedClient(hyperparameters, topics)
-
+        
         # Load test dataset
         client.load_local_dataset()
 
         # Preproces dataset
         client.preproces_dataset()
+        
+        # Start counting the execution time
+        st = time.time()
+        # Send an initial request to add the agent to the network
+        response = client.add_agent_to_network()
+        if response.success == False:
+            exit(0)
 
-        # Send an initial request to download the model from federated server 
+        # Send a request to download the model from federated server 
         response = client.download_model_request()
         if response.success == True:
             # Model configuration from json
@@ -68,12 +75,24 @@ def main():
                         request = client.get_new_weights_request()
                         if request.success is False:
                             print(request.message)
-                            time.sleep(1)
                         else:
                             # Set new local weights that have been received from federated server
                             client.set_new_weights(request.content)
                             break
+                    
+                    while rclpy.ok():
+                        request = client.wait_for_all_agents()
+                        if request.success is False:
+                            print(request.message)
+                        else:
+                            break
             
+            # Train the deep learning model
+            client.train_local_model(finish_train=True)
+
+            # Stop timer and save time
+            et = time.time()
+
             # Evaluate deep learning model
             client.evaluate_model()
 
@@ -86,8 +105,7 @@ def main():
                     rclpy.spin_once(client)
                 
                 else:
-                    client.get_confusion_matrix()
-                    client.save_model_history()
+                    client.save_model_information(st, et)
                     break
                     
         # Explicity destroy nodes 

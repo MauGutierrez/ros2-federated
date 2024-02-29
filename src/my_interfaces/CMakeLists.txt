@@ -14,6 +14,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/UnityImage.msg"
   "srv/SendLocalWeights.srv"
+  "srv/ConfigureAgent.srv"
   DEPENDENCIES sensor_msgs
   DEPENDENCIES std_msgs
 )

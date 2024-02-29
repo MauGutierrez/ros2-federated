@@ -8,12 +8,12 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     config = os.path.join(
-        get_package_share_directory('ros2_federated'),
+        get_package_share_directory('ros2_federated_server'),
         'config/params.yaml'
     )
 
     server = Node(
-        package="ros2_federated",
+        package="ros2_federated_server",
         name="federated_server",
         executable="main",
         output='screen',

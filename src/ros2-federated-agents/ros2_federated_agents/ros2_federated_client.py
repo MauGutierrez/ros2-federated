@@ -2,14 +2,15 @@ import rclpy
 from rclpy.node import Node
 from example_interfaces.srv import Trigger
 from my_interfaces.srv import SendLocalWeights
+from my_interfaces.srv import ConfigureAgent
 from my_interfaces.msg import UnityImage
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge
-from ros2_federated.helper_functions import *
+from ros2_federated_agents.helper_functions import serialize_array, deserialize_array
 from keras.datasets import cifar10
 from sklearn.metrics import confusion_matrix
-from ros2_federated.ros2_topics import Topics
+from ros2_federated_agents.ros2_topics import Topics
 from PIL import Image
 
 import os
@@ -25,8 +26,11 @@ import seaborn as sn
 import io
 import random
 import pickle
+import logging
+import datetime
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+LAST_TRAIN_EPOCH = 1
 
 class FederatedClient(Node):
     def __init__(self, model_config, topics: Topics):
@@ -78,6 +82,23 @@ class FederatedClient(Node):
             self.get_logger().info('service not available, waiting again...')
         self.update_req = SendLocalWeights.Request()
 
+        # Client to request the addition of a new agent in the network
+        self.add_agent_cli = self.create_client(ConfigureAgent, "add_agent")
+        while not self.add_agent_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.add_agent_req = ConfigureAgent.Request()
+
+        self.wait_agent_cli = self.create_client(ConfigureAgent, "wait_for_all_agents")
+        while not self.wait_agent_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.wait_agent_req = ConfigureAgent.Request()
+
+    def add_agent_to_network(self):
+        self.add_agent_req.data = self.client_name
+        self.future = self.add_agent_cli.call_async(self.add_agent_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+
     def download_model_request(self):
         self.future = self.model_cli.call_async(self.model_req)
         rclpy.spin_until_future_complete(self, self.future)
@@ -90,7 +111,13 @@ class FederatedClient(Node):
         return self.future.result()
     
     def get_new_weights_request(self):
+        self.update_req.data = self.client_name
         self.future = self.update_cli.call_async(self.update_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+
+    def wait_for_all_agents(self):
+        self.future = self.wait_agent_cli.call_async(self.wait_agent_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
 
@@ -196,12 +223,17 @@ class FederatedClient(Node):
         )
         self.model.summary()
     
-    def train_local_model(self) -> None:
+    def train_local_model(self, finish_train=None) -> None:
+        if finish_train is True:
+            epochs = LAST_TRAIN_EPOCH
+        else:
+            epochs = self.model_config['epochs']
+
         history = self.model.fit(
             self.X_train, self.y_train,
             validation_split = 0.1,
             batch_size=self.model_config['batch_size'],
-            epochs=self.model_config['epochs']
+            epochs=epochs
         )
 
         self.history.append(history.history)
@@ -230,22 +262,28 @@ class FederatedClient(Node):
         test_loss, test_acc = self.model.evaluate(self.X_test, self.y_test, verbose=2)
         self.get_logger().info(f'Test accuracy: is: {test_acc}')
 
-    def get_confusion_matrix(self) -> None:
-        filename = "./results/images/" + self.client_name + "_confusion_matrix.png"
-        
+    def save_model_information(self, start_time, end_time) -> None:
+        log_dir = "./results/" + os.environ['EXPERIMENT_NAME']
+
+        # Save model execution time
+        elapsed_time = end_time - start_time
+        path =  log_dir + "/time/" + self.client_name + ".log"
+        logging.basicConfig(filename=path, filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+        logging.warning('Execution time is: %s', elapsed_time)
+
+        # Get model confusion matrix
+        filename = log_dir + "/images/" + self.client_name + "_confusion_matrix.png"
         labels = set(self.labels_list) | set(self.predictions_list)
         labels = list(labels)
-
         self.labels_list = np.array(self.labels_list)
         self.predictions_list = np.array(self.predictions_list)
-
         confusion = confusion_matrix(self.labels_list, self.predictions_list)
         plt.figure(figsize = (10,7))
-        cfm_plot = sn.heatmap(confusion, xticklabels=labels, yticklabels=labels, annot=True)
+        cfm_plot = sn.heatmap(confusion/np.sum(confusion), xticklabels=labels, yticklabels=labels, annot=True, fmt='.2%', cmap='Blues')
         cfm_plot.set(xlabel="Predicted Label", ylabel="True Label")
         cfm_plot.figure.savefig(filename)
-    
-    def save_model_history(self) -> None:
-        path = "./results/history/" + self.client_name + ".pickle"
+
+        # Save model history in pickle file
+        path = log_dir + "/history/" + self.client_name + ".pickle"
         with open(path, "wb+") as file_pi:
             pickle.dump(self.history, file_pi)

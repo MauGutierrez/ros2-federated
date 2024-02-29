@@ -1,0 +1,5 @@
+string data     # string to request the addition of a new agent to the network
+---
+bool success    # indicate successful run of triggered service
+string message  # string response that contains an informational message
+string content  # string response that has the content of the response

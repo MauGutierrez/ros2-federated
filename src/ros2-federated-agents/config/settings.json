@@ -1,10 +1,10 @@
 {
     "model_hyperparameters" : {
         "optimizer" : "adam",
-        "batch_size": 32,
+        "batch_size": 64,
         "loss" : "sparse_categorical_crossentropy",
         "metrics" : ["accuracy"],
-        "epochs" : 10,
-        "iterations": 2
+        "epochs" : 20,
+        "iterations": 1
     }
 }

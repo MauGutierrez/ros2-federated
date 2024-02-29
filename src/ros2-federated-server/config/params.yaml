@@ -1,0 +1,3 @@
+federated_server:
+  ros__parameters:
+    dataset: "mnist"
