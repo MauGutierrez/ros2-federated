@@ -11,7 +11,7 @@ colcon build
 # Create results directory to store models and other stuff
 echo 'Delete already used Environment Variable'
 sed -i '/EXPERIMENT_NAME/d' ~/.bashrc
-echo 'export EXPERIMENT_NAME="4_agent_1_iterations_20_epoch"' >> ~/.bashrc
+echo 'export EXPERIMENT_NAME="Unity RL testing"' >> ~/.bashrc
 source ~/.bashrc
 
 mkdir -p results/$EXPERIMENT_NAME

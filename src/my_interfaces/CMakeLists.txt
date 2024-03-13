@@ -13,8 +13,11 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/UnityImage.msg"
-  "srv/SendLocalWeights.srv"
+  "msg/PosRot.msg"
   "srv/ConfigureAgent.srv"
+  "srv/InitUnityObjects.srv"
+  "srv/PositionService.srv"
+  "srv/SendLocalWeights.srv"
   DEPENDENCIES sensor_msgs
   DEPENDENCIES std_msgs
 )
