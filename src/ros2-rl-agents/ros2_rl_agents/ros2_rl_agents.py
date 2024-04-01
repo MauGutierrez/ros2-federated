@@ -1,30 +1,26 @@
-import cv2
-import gymnasium as gym
-import matplotlib.pyplot as plt
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import os
+import datetime
 import json
+import os
 import rclpy
-import time
 
 from rclpy.node import Node
 from collections import namedtuple
-from itertools import count
+from pathlib import Path
 from ros2_rl_agents.neural_net import Net
 from ros2_rl_agents.unity_env import UnityEnv
 from ros2_rl_agents.unity_agent import UnityAgent
+from ros2_rl_agents.metrics import MetricLogger
 
 from ament_index_python.packages import get_package_share_directory
 
 from example_interfaces.srv import Trigger
 from my_interfaces.srv import SendLocalWeights
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-TRANSITION = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+save_dir = Path('checkpoints') / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+save_dir.mkdir(parents=True)
+logger = MetricLogger(save_dir)
 
 # class FederatedAgent(Node):
 #     def __init__(self):
@@ -71,12 +67,6 @@ def main():
     # Init client object to handle communication with server
     # agent = FederatedAgent()
 
-    # if GPU is to be used
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Set up Matplotlib
-    plt.ion()
-
     # Load general settings saved in json file
     settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
 
@@ -113,7 +103,7 @@ def main():
             q, loss = agent.learn()
 
             # 8. Logging
-            # logger.log_step(reward, loss, q)
+            logger.log_step(reward, loss, q)
 
             # 9. Update state
             state = next_state
@@ -121,6 +111,18 @@ def main():
             # 10. Check if end of game
             if done:
                 break
+        
+        logger.log_episode()
+
+        if e % 20 == 0:
+            logger.record(
+                episode=e,
+                epsilon=agent.exploration_rate,
+                step=agent.curr_step
+            )
+    
+    # Explicity destroy nodes 
+    rclpy.shutdown()
         
 
 if __name__ == '__main__':

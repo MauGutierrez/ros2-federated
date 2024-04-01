@@ -3,6 +3,7 @@ import math
 import numpy as np
 import random
 import rclpy
+import time
 
 from cv_bridge import CvBridge
 from gym.spaces import Discrete
@@ -15,6 +16,8 @@ import torchvision.transforms as transforms
 
 IM_WIDTH = 640
 IM_HEIGHT = 480
+SECONDS_PER_EPISODE = 60
+DELTA_DISTANCE = 0.1
 
 class Coordinates():
     
@@ -58,9 +61,9 @@ class UnityEnv():
         self.objective_coordinates = Coordinates(0.0, 0.0, 0.0)
         self.agent_coordinates = Coordinates(0.0, 0.0, 0.0)
         self.collisions = 0
-        self.delta = 0.1
+        self.delta = DELTA_DISTANCE
         self.distance = 0.0
-        self.action_space = Discrete(4)
+        self.action_space = Discrete(3)
         self._cv_bridge = CvBridge()
 
     def reset(self):
@@ -71,8 +74,10 @@ class UnityEnv():
         response = self.unity_obj.request_init_unity_objects()
         # Get the initial observation Image
         if response.success is True:
+            # Start counting the time of an episode
+            self.episode_start = time.time()
             # Environment observation
-            observation = self._unity_image_formater(response.unity_image)
+            observation = self.__unity_image_formater(response.unity_image)
             # Initial coordinates of the objective
             self.objective_coordinates.pos_x = response.objective.pos_x
             self.objective_coordinates.pos_y = response.objective.pos_y
@@ -83,9 +88,9 @@ class UnityEnv():
             self.agent_coordinates.pos_z = response.agent.pos_z
             # Reset the number of collisions
             self.collisions = 0
-            self.distance = self._euclidean_distance(self.agent_coordinates, self.objective_coordinates)
+            self.distance = self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates)
         else:
-            self.get_logger().warning('Initialization of Unity objects failes.')
+            self.get_logger().warning('Initialization of Unity objects failed.')
         
         return observation, None
     
@@ -102,21 +107,20 @@ class UnityEnv():
         # 0 - forward
         # 1 - left
         # 2 - right
-        # 3 - back
         response = self.unity_obj.request_action_to_unity(action)
         # Get the Image, coordinates and collisions from unity object
-        observation = self._unity_image_formater(response.unity_image)
+        observation = self.__unity_image_formater(response.unity_image)
         object_coordinates = response.output
         object_collision = response.collision
         done = False
-        current_distance = self._euclidean_distance(object_coordinates, self.objective_coordinates)
+        current_distance = self.__euclidean_distance(object_coordinates, self.objective_coordinates)
         
         # If there was a collision, it means a big negative reward
         # and it has to stop this episode
         if object_collision is True:
             self.collisions += 1
             done = True
-            reward = -200
+            reward = -1
         # If current distance between A and B is bigger than the past distance
         # it means that I'm going far away from the objective
         elif current_distance > self.distance:
@@ -124,11 +128,12 @@ class UnityEnv():
             reward = -1     
         # If the current distance between point A and point B is smaller after every iteration
         # it means the agent is getting closer and closer 
-        else:
+        elif current_distance < self.distance:
             done = False
-            reward = 200
-        # If we have reached the objective, it means a terminal state 
-        if current_distance < self.delta:
+            reward = 1
+
+        # If we have reached the objective or the time for every episode has been reached, it means a terminal state 
+        if (current_distance < self.delta) or (self.episode_start + SECONDS_PER_EPISODE < time.time()):
             done = True
 
         # Update the distance with the current distance
@@ -136,12 +141,12 @@ class UnityEnv():
 
         return observation, reward, done, None
     
-    def _euclidean_distance(self, point_a, point_b) -> float:
+    def __euclidean_distance(self, point_a, point_b) -> float:
         distance = math.sqrt((point_a.pos_x-point_b.pos_x)**2 + (point_a.pos_y-point_b.pos_y)**2 + (point_a.pos_z-point_b.pos_z)**2)
 
         return distance
 
-    def _unity_image_formater(self, unity_img):
+    def __unity_image_formater(self, unity_img):
         # Convert image to cv_bridge
         cv_image = self._cv_bridge.imgmsg_to_cv2(unity_img, "bgr8")
         image_gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
