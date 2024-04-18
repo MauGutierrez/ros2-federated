@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import rclpy
+import torch
 
 from rclpy.node import Node
 from collections import namedtuple
@@ -17,7 +18,8 @@ from example_interfaces.srv import Trigger
 from my_interfaces.srv import SendLocalWeights
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-
+use_cuda = torch.cuda.is_available()
+print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
 logger = MetricLogger(save_dir)
@@ -76,7 +78,7 @@ def main():
     n_actions = env.action_space.n
 
     # Setup Unity Agent
-    agent = UnityAgent(state_dim=(1, 84, 84), action_dim=n_actions, save_dir=None, checkpoint=None)  
+    agent = UnityAgent(state_dim=(1, 84, 84), action_dim=n_actions, save_dir=save_dir, checkpoint=None)  
     
     episodes = 300
 
