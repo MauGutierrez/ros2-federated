@@ -14,17 +14,20 @@ class Net(nn.Module):
         if w != 84:
             raise ValueError(f"Expecting input width: 84, got: {w}")
 
+        # (w-f + 2P) / s + 1
         self.online = nn.Sequential(
-            nn.Conv2d(in_channels=c, out_channels=32, kernel_size=8, stride=4),
+            nn.Conv2d(in_channels=c, out_channels=32, kernel_size=(3,3), stride=(3,3)), # 28x28
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=(3,3), stride=(3,3)), # 9x9
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=(3,3), stride=(3,3)), # 3x3
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(3136, 512),
+            nn.Linear(32*3*3, 32),
             nn.ReLU(),
-            nn.Linear(512, output_dim)
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, output_dim)
         )
 
         self.target = copy.deepcopy(self.online)

@@ -4,6 +4,7 @@ import numpy as np
 import random
 import rclpy
 import time
+import array as arr
 
 from cv_bridge import CvBridge
 from collections import deque
@@ -11,14 +12,15 @@ from gym.spaces import Discrete
 from my_interfaces.srv import PositionService
 from my_interfaces.srv import InitUnityObjects
 from rclpy.node import Node
+from PIL import Image
 
 import torch
 import torchvision.transforms as transforms
 
 
-SECONDS_PER_EPISODE = 45.0
-DELTA_DISTANCE = 1.5000000
-DELTA_ANGLE = 8.0
+# SECONDS_PER_EPISODE = 15.0
+DELTA_DISTANCE = 1.8000
+DELTA_ANGLE = 10.0
 
 class Coordinates():
     
@@ -56,16 +58,18 @@ class UnityObject(Node):
         return self.future.result()
 
 class UnityEnv():
-    def __init__(self, action_space: int, num_stack:int) -> None:
+    def __init__(self, action_space: int, num_stack:int, height:int, width:int) -> None:
         self.unity_obj = UnityObject()
         self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.agent_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.collisions = 0
-        self.delta = DELTA_DISTANCE
         self.action_space = Discrete(action_space)
         self._cv_bridge = CvBridge()
         self.num_stack = num_stack
         self.frames = deque(maxlen=num_stack)
+        self.distances = arr.array('d', [])
+        self.width = width
+        self.height = height
 
     def reset(self):
         # Restart the initial coordinates of the object
@@ -76,7 +80,7 @@ class UnityEnv():
         # Get the initial observation Image
         if response.success is True:
             # Start counting the time of an episode
-            self.episode_start = time.time()
+            # self.episode_start = time.time()
             # Environment observation
             observation = self.__unity_image_formater(response.unity_image)
             # Initial coordinates of the objective
@@ -95,12 +99,17 @@ class UnityEnv():
             self.agent_coordinates.rot_z = response.agent.rot_z
             # Reset the number of collisions
             self.collisions = 0
+            del self.distances[:]
+            self.distances.append(self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates))
         else:
             self.unity_obj.get_logger().warning('Initialization of Unity objects failed.')
             observation = []
         
-        stacked_observations = np.array([self.frames.append(observation) for _ in range(self.num_stack)], dtype=np.float64)
+        for _ in range(self.num_stack):
+            self.frames.append(observation)
         
+        stacked_observations = np.array(self.frames, dtype=np.float64, copy=True)
+
         return stacked_observations, None
     
     def step(self, action):
@@ -124,37 +133,38 @@ class UnityEnv():
         object_collision = response.collision
         # Get the current angle between the agent and the object
         orientation_angle = response.vision_angle
-        done = False
-        # Get the current distance between A and B
+        # Get the current distance between A and B and the minimun distance of the episode
         current_distance = self.__euclidean_distance(object_coordinates, self.objective_coordinates)
+        min_distance = min(self.distances)
+
+        done = False
+        distance_term = 0
+        angle_term = 0
+
+        if current_distance < min_distance:
+            distance_term = 1
+        
+        if orientation_angle < DELTA_ANGLE:
+            angle_term = 1
+
+        reward = angle_term - 0.01 + (0.005 * distance_term)
+
+        if current_distance < DELTA_DISTANCE:
+            done = True
+            reward = 1
 
         # If there was a collision, it means a negative reward
         # and it has to stop this episode
         if object_collision:
             self.collisions += 1
             done = True
-            reward = -100
-
-        # If we have reached the objective, it means a terminal state 
-        elif current_distance < self.delta:
-            done = True
-            reward = 1
-        
-        if done:
-            return np.array(self.frames, dtype=np.float64), reward, done, None    
-
-        # This will help the agent to learn to rotate and see the object
-        if orientation_angle < DELTA_ANGLE:
-            done = False
-            reward = 0.5
-
-        else:
-            done = False
-            reward = -0.5
+            reward = -1
 
         # If we have reached the time limit for every episode, it's a terminal state
-        if self.episode_start + SECONDS_PER_EPISODE < time.time():
-            done = True
+        # if self.episode_start + SECONDS_PER_EPISODE < time.time():
+        #     done = True
+        
+        self.distances.append(current_distance)
 
         return np.array(self.frames, dtype=np.float64), reward, done, None
     
@@ -170,7 +180,6 @@ class UnityEnv():
         image_gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
         image_rotated = cv2.rotate(image_gray, cv2.ROTATE_180)
         image_flipped = cv2.flip(image_rotated, 1)
-        img = cv2.resize(image_flipped, (84 , 84))
-        img = img.reshape((84, 84, 1))
+        img = cv2.resize(image_flipped, (self.height, self.width))
 
         return img

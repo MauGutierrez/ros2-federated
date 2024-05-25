@@ -17,14 +17,17 @@ from ament_index_python.packages import get_package_share_directory
 from example_interfaces.srv import Trigger
 from my_interfaces.srv import SendLocalWeights
 
-# use_cuda = torch.cuda.is_available()
-# print(f"Using CUDA: {use_cuda}")
+use_cuda = torch.cuda.is_available()
+print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
 logger = MetricLogger(save_dir)
 SKIP_FRAMES = 3
 FRAME_STACK = 4
 ACTION_SPACE = 3
+NUM_EPISODES = 500
+HEIGHT = 84
+WIDTH = 84
 
 # class FederatedAgent(Node):
 #     def __init__(self):
@@ -75,14 +78,14 @@ def main():
     settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, num_stack=FRAME_STACK)
+    env = UnityEnv(action_space=ACTION_SPACE, num_stack=FRAME_STACK, height=HEIGHT, width=WIDTH)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
 
     # Setup Unity Agent
-    agent = UnityAgent(state_dim=(4, 84, 84), action_dim=n_actions, save_dir=save_dir, checkpoint=None)  
+    agent = UnityAgent(state_dim=(FRAME_STACK, HEIGHT, WIDTH), action_dim=n_actions, save_dir=save_dir, checkpoint=None)  
     
-    episodes = 1
+    episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
     for e in range(episodes):
@@ -124,7 +127,13 @@ def main():
                 epsilon=agent.exploration_rate,
                 step=agent.curr_step
             )
-    
+        
+        # 11. Update the exploration rate after every episode
+        agent.update_exploration_rate()
+
+    # 12. Save the model
+    agent.save()
+
     # Explicity destroy nodes 
     rclpy.shutdown()
         
