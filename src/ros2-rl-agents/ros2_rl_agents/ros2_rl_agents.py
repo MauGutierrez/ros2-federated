@@ -4,18 +4,12 @@ import os
 import rclpy
 import torch
 
-from rclpy.node import Node
-from collections import namedtuple
 from pathlib import Path
-from ros2_rl_agents.neural_net import Net
 from ros2_rl_agents.unity_env import UnityEnv
 from ros2_rl_agents.unity_agent import UnityAgent
 from ros2_rl_agents.metrics import MetricLogger
-
 from ament_index_python.packages import get_package_share_directory
 
-from example_interfaces.srv import Trigger
-from my_interfaces.srv import SendLocalWeights
 
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
@@ -29,50 +23,10 @@ NUM_EPISODES = 500
 HEIGHT = 84
 WIDTH = 84
 
-# class FederatedAgent(Node):
-#     def __init__(self):
-#         super().__init__('federated_agent')
 
-#         # Client to request the initial model
-#         self.model_cli = self.create_client(Trigger, "download_model")
-#         while not self.model_cli.wait_for_service(timeout_sec=1.0):
-#             self.get_logger().info('service not available, waiting again...')
-#         self.model_req = Trigger.Request()
-
-#         # Client to request the addition of the weights
-#         self.weights_cli = self.create_client(SendLocalWeights, "add_weights")
-#         while not self.weights_cli.wait_for_service(timeout_sec=1.0):
-#             self.get_logger().info('service not available, waiting again...')
-#         self.weights_req = SendLocalWeights.Request()
-
-#         # Client to request the update of the weights
-#         self.update_cli = self.create_client(SendLocalWeights, "get_weights")
-#         while not self.update_cli.wait_for_service(timeout_sec=1.0):
-#             self.get_logger().info('service not available, waiting again...')
-#         self.update_req = SendLocalWeights.Request()
-
-#     def download_model_request(self):
-#         self.future = self.model_cli.call_async(self.model_req)
-#         rclpy.spin_until_future_complete(self, self.future)
-#         return self.future.result()
-    
-#     def add_local_weights_request(self, message):
-#         self.weights_req.data = message
-#         self.future = self.weights_cli.call_async(self.weights_req)
-#         rclpy.spin_until_future_complete(self, self.future)
-#         return self.future.result()
-    
-#     def get_new_weights_request(self):
-#         self.future = self.update_cli.call_async(self.update_req)
-#         rclpy.spin_until_future_complete(self, self.future)
-#         return self.future.result()
-    
 def main():
     # Init ROS
     rclpy.init()
-
-    # Init client object to handle communication with server
-    # agent = FederatedAgent()
 
     # Load general settings saved in json file
     settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
@@ -130,8 +84,11 @@ def main():
         
         # 11. Update the exploration rate after every episode
         agent.update_exploration_rate()
+    
+    # 12. Update the optimizer with the average
+    agent.update_optimizer()
 
-    # 12. Save the model
+    # 13. Save the model
     agent.save()
 
     # Explicity destroy nodes 

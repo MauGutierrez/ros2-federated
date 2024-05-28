@@ -1,13 +1,49 @@
-import torch
+import json
+import rclpy
 import random, numpy as np
-from pathlib import Path
+import torch
 
-from ros2_rl_agents.neural_net import Net
 from collections import deque
+from example_interfaces.srv import Trigger
+from my_interfaces.srv import SendLocalWeights
+from my_interfaces.srv import ConfigureAgent
+from pathlib import Path
+from rclpy.node import Node
+from ros2_rl_agents.neural_net import Net
 
+
+class FederatedConnection(Node):
+    def __init__(self):
+        super().__init__('federated_agent')
+
+        # Client to request the addition of the weights
+        self.loss_cli = self.create_client(SendLocalWeights, "add_to_global")
+        while not self.loss_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.loss_req = SendLocalWeights.Request()
+
+        # Client to request the addition of a new agent in the network
+        self.add_agent_cli = self.create_client(ConfigureAgent, "add_agent")
+        while not self.add_agent_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.add_agent_req = ConfigureAgent.Request()
+
+    def add_agent_to_network(self):
+        self.add_agent_req.data = self.client_name
+        self.future = self.add_agent_cli.call_async(self.add_agent_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+    
+    def add_local_weights_request(self, message):
+        self.loss_req.data = message
+        self.future = self.weights_cli.call_async(self.loss_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+    
 
 class UnityAgent:
     def __init__(self, state_dim, action_dim, save_dir=None, checkpoint=None):
+        self.federated_connection = FederatedConnection()
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.memory = deque(maxlen=10000)
@@ -174,3 +210,41 @@ class UnityAgent:
         print(f"Loading model at {load_path} with exploration rate {exploration_rate}")
         self.net.load_state_dict(state_dict)
         self.exploration_rate = exploration_rate
+    
+
+    def update_optimizer(self):
+        if self.curr_step < self.burnin:
+            return None, None
+        
+        # Sample from memory
+        state, next_state, action, reward, done = self.recall()
+
+        # Get TD Estimate
+        td_est = self.td_estimate(state, action)
+
+        # Get TD Target
+        td_tgt = self.td_target(reward, next_state, done)
+
+        # Backpropagate loss through Q_online
+        loss = self.loss_fn(td_est, td_tgt)
+        
+        message = {
+            "client": "agent_1",
+            "loss": loss.item()
+        }
+
+        message = json.dumps(message)
+
+        response = self.federated_connection.add_local_weights_request(message)
+        if response.success is False:
+            print("Failure")
+        else:
+            # If there are missing agents, just continue with the iteration
+            if response.message != "OK":
+                print(response.message)
+            # else, update with global loss value 
+            else:
+                new_loss = float(response.content)
+                self.optimizer.zero_grad()
+                new_loss.backward()
+                self.optimizer.step()
