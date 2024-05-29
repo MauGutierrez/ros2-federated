@@ -5,22 +5,23 @@ import torch
 
 from collections import deque
 from example_interfaces.srv import Trigger
-from my_interfaces.srv import SendLocalWeights
+from my_interfaces.srv import LocalValues
 from my_interfaces.srv import ConfigureAgent
 from pathlib import Path
 from rclpy.node import Node
 from ros2_rl_agents.neural_net import Net
 
+NAME = "agent_1"
 
 class FederatedConnection(Node):
     def __init__(self):
         super().__init__('federated_agent')
 
         # Client to request the addition of the weights
-        self.loss_cli = self.create_client(SendLocalWeights, "add_to_global")
+        self.loss_cli = self.create_client(LocalValues, "add_to_global")
         while not self.loss_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
-        self.loss_req = SendLocalWeights.Request()
+        self.loss_req = LocalValues.Request()
 
         # Client to request the addition of a new agent in the network
         self.add_agent_cli = self.create_client(ConfigureAgent, "add_agent")
@@ -28,8 +29,8 @@ class FederatedConnection(Node):
             self.get_logger().info('service not available, waiting again...')
         self.add_agent_req = ConfigureAgent.Request()
 
-    def add_agent_to_network(self):
-        self.add_agent_req.data = self.client_name
+    def add_agent_to_network(self, name):
+        self.add_agent_req.data = name
         self.future = self.add_agent_cli.call_async(self.add_agent_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
@@ -43,6 +44,7 @@ class FederatedConnection(Node):
 
 class UnityAgent:
     def __init__(self, state_dim, action_dim, save_dir=None, checkpoint=None):
+        self.agent_name = NAME
         self.federated_connection = FederatedConnection()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -229,7 +231,7 @@ class UnityAgent:
         loss = self.loss_fn(td_est, td_tgt)
         
         message = {
-            "client": "agent_1",
+            "client": self.agent_name,
             "loss": loss.item()
         }
 
@@ -248,3 +250,8 @@ class UnityAgent:
                 self.optimizer.zero_grad()
                 new_loss.backward()
                 self.optimizer.step()
+    
+    def add_agent_to_federated_network(self):
+        response = self.federated_connection.add_agent_to_network(self.agent_name)
+        if response.success == False:
+            exit(0)

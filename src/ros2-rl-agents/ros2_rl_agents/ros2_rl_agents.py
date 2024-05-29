@@ -29,7 +29,7 @@ def main():
     rclpy.init()
 
     # Load general settings saved in json file
-    settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
 
     # Setup UnityEnv environment
     env = UnityEnv(action_space=ACTION_SPACE, num_stack=FRAME_STACK, height=HEIGHT, width=WIDTH)
@@ -39,6 +39,9 @@ def main():
     # Setup Unity Agent
     agent = UnityAgent(state_dim=(FRAME_STACK, HEIGHT, WIDTH), action_dim=n_actions, save_dir=save_dir, checkpoint=None)  
     
+    # Add the agent to the federated network
+    agent.add_agent_to_federated_network()
+
     episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
@@ -85,8 +88,8 @@ def main():
         # 11. Update the exploration rate after every episode
         agent.update_exploration_rate()
     
-    # 12. Update the optimizer with the average
-    agent.update_optimizer()
+        # 12. Update the optimizer with the average
+        agent.update_optimizer()
 
     # 13. Save the model
     agent.save()

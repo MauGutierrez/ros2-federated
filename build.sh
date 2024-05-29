@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Source ROS
-echo '/opt/ros/humble/setup.bash'
+echo 'Source ROS 2 package'
 source /opt/ros/humble/setup.bash
 
 # Compile ros2-federated project
-echo 'colcon build'
-colcon build
+echo 'Compilation of ROS 2 project'
+colcon build --packages-ignore ros2_federated_agents
 
 # Create results directory to store models and other stuff
 echo 'Delete already used Environment Variable'

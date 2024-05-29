@@ -1,7 +1,7 @@
 import rclpy 
 from rclpy.node import Node
 from example_interfaces.srv import Trigger
-from my_interfaces.srv import SendLocalWeights
+from my_interfaces.srv import LocalValues
 from my_interfaces.srv import ConfigureAgent
 
 import os
@@ -27,7 +27,7 @@ class FederatedServer(Node):
 
         # Service to get the average of the weights
         self.update_weights_service_ = self.create_service(
-            SendLocalWeights, "add_to_global", self.callback_add_to_global
+            LocalValues, "add_to_global", self.callback_add_to_global
         )
         
         # Service to add a new agent to the network
@@ -51,13 +51,12 @@ class FederatedServer(Node):
                 response.success = True
                 response.message = "Loss added"
             # State 2: agent is in the waiting buffer and the K agents has already participated
-            elif len(self._agents_buffer) == self._n_agents and agent_name in self._agents_buffer:
+            if len(self._agents_buffer) == self._n_agents and agent_name in self._agents_buffer:
                 agent_index = self._agents_buffer.index(agent_name)
                 self._agents_buffer[agent_index] = -1
-                data = self.get_average()
                 response.success = True
                 response.message = "OK"
-                response.content = data
+                response.global_value = self.get_average()
                 self.empty_agents_buffer()
             # State 3: do nothing since I already send my collaboration and there are missing agents
             else:
@@ -92,9 +91,8 @@ class FederatedServer(Node):
     
     def get_average(self):
         new_value = self._fl_loss / self._n_agents
-        data = str(new_value)
 
-        return data
+        return new_value
     
     def empty_agents_buffer(self):
         all_ready = True

@@ -17,7 +17,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ConfigureAgent.srv"
   "srv/InitUnityObjects.srv"
   "srv/PositionService.srv"
-  "srv/SendLocalWeights.srv"
+  "srv/LocalValues.srv"
   DEPENDENCIES sensor_msgs
   DEPENDENCIES std_msgs
 )
