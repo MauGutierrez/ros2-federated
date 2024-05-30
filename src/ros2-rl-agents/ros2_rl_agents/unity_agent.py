@@ -37,7 +37,7 @@ class FederatedConnection(Node):
     
     def add_local_weights_request(self, message):
         self.loss_req.data = message
-        self.future = self.weights_cli.call_async(self.loss_req)
+        self.future = self.loss_cli.call_async(self.loss_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
     
@@ -65,10 +65,12 @@ class UnityAgent:
         self.save_dir = save_dir
 
         self.use_cuda = torch.cuda.is_available()
+        self.device = 'cpu'
 
         # Mario's DNN to predict the most optimal action - we implement this in the Learn section
         self.net = Net(self.state_dim, self.action_dim).float()
         if self.use_cuda:
+            self.device = 'cuda'
             self.net = self.net.to(device='cuda')
         if checkpoint:
             self.load(checkpoint)
@@ -246,9 +248,13 @@ class UnityAgent:
                 print(response.message)
             # else, update with global loss value 
             else:
-                new_loss = float(response.content)
+                # Update loss with new global value
+                # and set torch.no_grad() to keep the same grad_fn
+                with torch.no_grad():
+                    new_loss = response.global_value
+                    loss.set_(torch.Tensor([new_loss]).to(self.device)[0])
                 self.optimizer.zero_grad()
-                new_loss.backward()
+                loss.backward()
                 self.optimizer.step()
     
     def add_agent_to_federated_network(self):
