@@ -9,13 +9,13 @@ from my_interfaces.srv import LocalValues
 from my_interfaces.srv import ConfigureAgent
 from pathlib import Path
 from rclpy.node import Node
-from ros2_rl_agents.neural_net import Net
+from ros2_rl_agent_2.neural_net import Net
 
-NAME = "agent_1"
+NAME = "agent_2"
 
 class FederatedConnection(Node):
     def __init__(self):
-        super().__init__('federated_' + NAME)
+        super().__init__('federated_'+NAME)
 
         # Client to request the addition of the weights
         self.loss_cli = self.create_client(LocalValues, "add_to_global")

@@ -5,15 +5,15 @@ import rclpy
 import torch
 
 from pathlib import Path
-from ros2_rl_agents.unity_env import UnityEnv
-from ros2_rl_agents.unity_agent import UnityAgent
-from ros2_rl_agents.metrics import MetricLogger
+from ros2_rl_agent_2.unity_env import UnityEnv
+from ros2_rl_agent_2.unity_agent import UnityAgent
+from ros2_rl_agent_2.metrics import MetricLogger
 from ament_index_python.packages import get_package_share_directory
 
 
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
-save_dir = Path('checkpoints') / "agent_1" / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+save_dir = Path('checkpoints') / "agent_2" / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
 logger = MetricLogger(save_dir)
 SKIP_FRAMES = 3

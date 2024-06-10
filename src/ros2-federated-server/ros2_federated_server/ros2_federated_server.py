@@ -18,6 +18,7 @@ class FederatedServer(Node):
     
     def __init__(self):
         super().__init__('federated_server')
+        self.get_logger().info(f'Federated Server is running.')
         self.declare_parameters(
             namespace='',
             parameters=[
@@ -77,6 +78,7 @@ class FederatedServer(Node):
                 response.success = False
                 response.message = "Agent is already in the network. Use other name"
             else:
+                self.get_logger().info(f'{agent_name} has been added to the network.')
                 self._agents_list.append(agent_name)
                 self._n_agents = len(self._agents_list)
                 response.success = True
