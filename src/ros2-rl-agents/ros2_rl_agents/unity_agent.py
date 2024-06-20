@@ -29,6 +29,17 @@ class FederatedConnection(Node):
             self.get_logger().info('service not available, waiting again...')
         self.add_agent_req = ConfigureAgent.Request()
 
+        self.wait_agent_cli = self.create_client(ConfigureAgent, "wait_for_all_agents")
+        while not self.wait_agent_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.wait_agent_req = ConfigureAgent.Request()
+
+        # Client to request the new global value
+        self.update_cli = self.create_client(LocalValues, "get_global_value")
+        while not self.update_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.update_req = LocalValues.Request()
+
     def add_agent_to_network(self, name):
         self.add_agent_req.data = name
         self.future = self.add_agent_cli.call_async(self.add_agent_req)
@@ -40,7 +51,17 @@ class FederatedConnection(Node):
         self.future = self.loss_cli.call_async(self.loss_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
+
+    def wait_for_all_agents(self):
+        self.future = self.wait_agent_cli.call_async(self.wait_agent_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
     
+    def get_new_weights_request(self, message):
+        self.update_req.data = message
+        self.future = self.update_cli.call_async(self.update_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
 
 class UnityAgent:
     def __init__(self, state_dim, action_dim, save_dir=None, checkpoint=None):
@@ -218,7 +239,7 @@ class UnityAgent:
 
     def update_optimizer(self):
         if self.curr_step < self.burnin:
-            return None, None
+            return None
         
         # Sample from memory
         state, next_state, action, reward, done = self.recall()
@@ -234,7 +255,7 @@ class UnityAgent:
         
         message = {
             "client": self.agent_name,
-            "loss": loss.item()
+            "local_value": loss.item()
         }
 
         message = json.dumps(message)
@@ -243,19 +264,27 @@ class UnityAgent:
         if response.success is False:
             print("Failure")
         else:
-            # If there are missing agents, just continue with the iteration
-            if response.message != "OK":
-                print(response.message)
-            # else, update with global loss value 
-            else:
-                # Update loss with new global value
-                # and set torch.no_grad() to keep the same grad_fn
-                with torch.no_grad():
-                    new_loss = response.global_value
-                    loss.set_(torch.Tensor([new_loss]).to(self.device)[0])
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+            while rclpy.ok():
+                response = self.federated_connection.get_new_weights_request(self.agent_name)
+                if response.success is False:
+                    print(response.message)
+                else:
+                    # Update loss with new global value
+                    # and set torch.no_grad() to keep the same grad_fn
+                    with torch.no_grad():
+                        new_loss = response.global_value
+                        loss.set_(torch.Tensor([new_loss]).to(self.device)[0])
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+                    break
+            
+            while rclpy.ok():
+                response = self.federated_connection.wait_for_all_agents()
+                if response.success is False:
+                    print(response.message)
+                else:
+                    break    
     
     def add_agent_to_federated_network(self):
         response = self.federated_connection.add_agent_to_network(self.agent_name)

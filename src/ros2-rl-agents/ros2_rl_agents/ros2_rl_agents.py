@@ -13,7 +13,7 @@ from ament_index_python.packages import get_package_share_directory
 
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
-save_dir = Path('checkpoints') / "agent_1" / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+save_dir = Path('checkpoints') / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
 logger = MetricLogger(save_dir)
 SKIP_FRAMES = 3
