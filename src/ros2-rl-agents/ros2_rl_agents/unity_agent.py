@@ -40,6 +40,12 @@ class FederatedConnection(Node):
             self.get_logger().info('service not available, waiting again...')
         self.update_req = LocalValues.Request()
 
+        # Client to request the remove of an agent in the network
+        self.remove_agent_cli = self.create_client(ConfigureAgent, "remove_agent")
+        while not self.remove_agent_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.remove_agent_req = ConfigureAgent.Request()
+
     def add_agent_to_network(self, name):
         self.add_agent_req.data = name
         self.future = self.add_agent_cli.call_async(self.add_agent_req)
@@ -60,6 +66,12 @@ class FederatedConnection(Node):
     def get_new_weights_request(self, message):
         self.update_req.data = message
         self.future = self.update_cli.call_async(self.update_req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
+    
+    def remove_agent_from_network(self, name):
+        self.remove_agent_req.data = name
+        self.future = self.remove_agent_cli.call_async(self.remove_agent_req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
 
@@ -266,9 +278,7 @@ class UnityAgent:
         else:
             while rclpy.ok():
                 response = self.federated_connection.get_new_weights_request(self.agent_name)
-                if response.success is False:
-                    print(response.message)
-                else:
+                if response.success is True:
                     # Update loss with new global value
                     # and set torch.no_grad() to keep the same grad_fn
                     with torch.no_grad():
@@ -281,12 +291,15 @@ class UnityAgent:
             
             while rclpy.ok():
                 response = self.federated_connection.wait_for_all_agents()
-                if response.success is False:
-                    print(response.message)
-                else:
+                if response.success is True:
                     break    
     
     def add_agent_to_federated_network(self):
         response = self.federated_connection.add_agent_to_network(self.agent_name)
-        if response.success == False:
+        if response.success is False:
+            exit(0)
+    
+    def remove_agent_from_federated_network(self):
+        response = self.federated_connection.remove_agent_from_network(self.agent_name)
+        if response.success is False:
             exit(0)

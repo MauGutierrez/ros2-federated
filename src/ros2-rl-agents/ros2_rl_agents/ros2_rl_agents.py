@@ -19,7 +19,7 @@ logger = MetricLogger(save_dir)
 SKIP_FRAMES = 3
 FRAME_STACK = 4
 ACTION_SPACE = 3
-NUM_EPISODES = 500
+NUM_EPISODES = 400
 HEIGHT = 84
 WIDTH = 84
 
@@ -91,7 +91,10 @@ def main():
         # 12. Update the optimizer with the average
         agent.update_optimizer()
 
-    # 13. Save the model
+    # 13. Remove agent from network
+    agent.remove_agent_from_federated_network()
+
+    # 14. Save the model
     agent.save()
 
     # Explicity destroy nodes 

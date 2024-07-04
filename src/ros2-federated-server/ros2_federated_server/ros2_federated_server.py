@@ -37,6 +37,11 @@ class FederatedServer(Node):
             ConfigureAgent, "add_agent", self.callback_add_agent
         )
 
+        # Service to remove an agent from the network
+        self.remove_agents_service = self.create_service(
+            ConfigureAgent, "remove_agent", self.callback_remove_agent
+        )
+
         # Service to send the new global value
         self.update_global_model_ = self.create_service(
             LocalValues, "get_global_value", self.callback_send_global
@@ -103,6 +108,25 @@ class FederatedServer(Node):
             response.success = True
             response.message = "All agents are ready"
 
+        return response
+
+    def callback_remove_agent(self, request, response):
+        agent_name = request.data
+        if agent_name is None or agent_name == "":
+            response.success = False
+            response.message = "Wrong request"
+        else:
+            if agent_name not in self._agents_list:
+                response.success = False
+                response.message = "Agent is not in the network. Use the correct name."
+            else:
+                self.get_logger().info(f'{agent_name} has been removed from the federated network.')
+                self._agents_list.remove(agent_name)
+                del self._agents_ready[agent_name]
+                self._n_agents = len(self._agents_list)
+                response.success = True
+                response.message = "OK"
+                
         return response
 
     def all_agents_ready(self):
