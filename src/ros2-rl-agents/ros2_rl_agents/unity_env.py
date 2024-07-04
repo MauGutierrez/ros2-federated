@@ -36,12 +36,12 @@ class UnityObject(Node):
 
     def __init__(self):
         super().__init__('unity_object')
-        self.init_cli = self.create_client(InitUnityObjects, 'init_unity_objects_1')
+        self.init_cli = self.create_client(InitUnityObjects, 'init_unity_objects_2')
         while not self.init_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.inital_req = InitUnityObjects.Request()
 
-        self.actions_cli = self.create_client(PositionService, 'move_unity_object_1')
+        self.actions_cli = self.create_client(PositionService, 'move_unity_object_2')
         while not self.actions_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.action_req = PositionService.Request()

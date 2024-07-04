@@ -11,7 +11,7 @@ from pathlib import Path
 from rclpy.node import Node
 from ros2_rl_agents.neural_net import Net
 
-NAME = "agent_1"
+NAME = "agent_2"
 
 class FederatedConnection(Node):
     def __init__(self):

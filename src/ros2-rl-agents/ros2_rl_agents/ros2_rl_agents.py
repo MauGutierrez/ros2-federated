@@ -90,7 +90,7 @@ def main():
     
         # 12. Update the optimizer with the average
         agent.update_optimizer()
-
+    
     # 13. Remove agent from network
     agent.remove_agent_from_federated_network()
 

@@ -24,7 +24,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'agent_1 = ros2_rl_agents.ros2_rl_agents:main',
+            'rl_agent = ros2_rl_agents.ros2_rl_agents:main',
         ],
     },
 )

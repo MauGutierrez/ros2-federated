@@ -15,7 +15,7 @@ class FederatedServer(Node):
     _n_agents = 0
     _agents_list = []
     _agents_ready = dict() 
-    _fl_loss = 0
+    _fl_loss = 0.0
     
     def __init__(self):
         super().__init__('federated_server')
@@ -80,6 +80,7 @@ class FederatedServer(Node):
                 self._agents_list.append(agent_name)
                 self._agents_ready[agent_name] = 0
                 self._n_agents = len(self._agents_list)
+                self.get_logger().info(f'Agents in network: {self._n_agents}.')
                 response.success = True
                 response.message = "OK"
         
@@ -134,7 +135,7 @@ class FederatedServer(Node):
             if self._agents_ready[agent] == 0:
                 return False
         
-        self._fl_weights = []
+        self._fl_loss = 0.0
 
         return True
 
@@ -143,6 +144,7 @@ class FederatedServer(Node):
         self._agents_counter += 1
         agent = request["client"]
         agent_loss = request["local_value"]
+        self.get_logger().info(f'Loss from {request["client"]}: {agent_loss}')
         self._agents_ready[agent] = 0
         self._fl_loss = self._fl_loss + agent_loss
 
