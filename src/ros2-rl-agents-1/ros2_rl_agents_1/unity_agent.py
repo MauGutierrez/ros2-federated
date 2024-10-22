@@ -9,7 +9,7 @@ from my_interfaces.srv import LocalValues
 from my_interfaces.srv import ConfigureAgent
 from pathlib import Path
 from rclpy.node import Node
-from ros2_rl_agents.neural_net import Net
+from ros2_rl_agents_1.neural_net import Net
 
 
 class FederatedConnection(Node):

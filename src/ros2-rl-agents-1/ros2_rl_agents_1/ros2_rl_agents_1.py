@@ -5,12 +5,12 @@ import rclpy
 import torch
 
 from pathlib import Path
-from ros2_rl_agents.unity_env import UnityEnv
-from ros2_rl_agents.unity_agent import UnityAgent
-from ros2_rl_agents.metrics import MetricLogger
+from ros2_rl_agents_1.unity_env import UnityEnv
+from ros2_rl_agents_1.unity_agent import UnityAgent
+from ros2_rl_agents_1.metrics import MetricLogger
 from ament_index_python.packages import get_package_share_directory
 
-NAME = "agent_1"
+NAME = "agent_2"
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
@@ -30,7 +30,7 @@ def main():
     rclpy.init()
 
     # Load general settings saved in json file
-    # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    # settings = os.path.join(get_package_share_directory('ros2_rl_agents_1'), 'config/settings.json')
 
     # Setup UnityEnv environment
     env = UnityEnv(action_space=ACTION_SPACE, num_stack=FRAME_STACK, height=HEIGHT, width=WIDTH, agent_name=NAME)
@@ -38,7 +38,7 @@ def main():
     n_actions = env.action_space.n
 
     # Setup Unity Agent
-    agent = UnityAgent(agent_name=NAME, state_dim=(FRAME_STACK, HEIGHT, WIDTH), action_dim=n_actions, save_dir=save_dir, checkpoint=checkpoint)   
+    agent = UnityAgent(agent_name=NAME, state_dim=(FRAME_STACK, HEIGHT, WIDTH), action_dim=n_actions, save_dir=save_dir, checkpoint=checkpoint)  
     
     # Add the agent to the federated network
     agent.add_agent_to_federated_network()

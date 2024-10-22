@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 import os
 
-package_name = 'ros2_rl_agents'
+package_name = 'ros2_rl_agents_1'
 share_dir = os.path.join("share", package_name)
 
 setup(
@@ -24,8 +24,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'run_agent = ros2_rl_agents.ros2_rl_agents:main',
-            'test_agent = ros2_rl_agents.ros2_rl_agents_evaluate:main'
+            'run_agent = ros2_rl_agents_1.ros2_rl_agents_1:main',
         ],
     },
 )
