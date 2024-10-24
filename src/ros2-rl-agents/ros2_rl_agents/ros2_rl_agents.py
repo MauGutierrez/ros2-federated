@@ -79,18 +79,17 @@ def main():
         
         logger.log_episode()
 
+        # 11. Update the exploration rate after every episode
+        agent.update_exploration_rate()
+        
         if e % 20 == 0:
             logger.record(
                 episode=e,
                 epsilon=agent.exploration_rate,
                 step=agent.curr_step
             )
-        
-        # 11. Update the exploration rate after every episode
-        agent.update_exploration_rate()
-    
-        # 12. Update the optimizer with the average
-        agent.update_optimizer()
+            # 12. Update the optimizer with the average
+            agent.update_optimizer()
     
     # 13. Remove agent from network
     agent.remove_agent_from_federated_network()

@@ -10,12 +10,16 @@ from my_interfaces.srv import ConfigureAgent
 from pathlib import Path
 from rclpy.node import Node
 from ros2_rl_agents.neural_net import Net
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+
 
 
 class FederatedConnection(Node):
     def __init__(self, agent_name):
         super().__init__('federated_' + agent_name)
 
+        wait_cb = MutuallyExclusiveCallbackGroup()
+        get_values_cb = MutuallyExclusiveCallbackGroup()
         # Client to request the addition of the weights
         self.loss_cli = self.create_client(LocalValues, "add_to_global")
         while not self.loss_cli.wait_for_service(timeout_sec=1.0):
@@ -28,13 +32,13 @@ class FederatedConnection(Node):
             self.get_logger().info('service not available, waiting again...')
         self.add_agent_req = ConfigureAgent.Request()
 
-        self.wait_agent_cli = self.create_client(ConfigureAgent, "wait_for_all_agents")
+        self.wait_agent_cli = self.create_client(ConfigureAgent, "wait_for_all_agents", callback_group=wait_cb)
         while not self.wait_agent_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.wait_agent_req = ConfigureAgent.Request()
 
         # Client to request the new global value
-        self.update_cli = self.create_client(LocalValues, "get_global_value")
+        self.update_cli = self.create_client(LocalValues, "get_global_value", callback_group=get_values_cb)
         while not self.update_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.update_req = LocalValues.Request()
@@ -47,32 +51,32 @@ class FederatedConnection(Node):
 
     def add_agent_to_network(self, name):
         self.add_agent_req.data = name
-        self.future = self.add_agent_cli.call_async(self.add_agent_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        self.future_add_agent = self.add_agent_cli.call_async(self.add_agent_req)
+        rclpy.spin_until_future_complete(self, self.future_add_agent)
+        return self.future_add_agent.result()
     
     def add_local_weights_request(self, message):
         self.loss_req.data = message
-        self.future = self.loss_cli.call_async(self.loss_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        self.future_add_local = self.loss_cli.call_async(self.loss_req)
+        rclpy.spin_until_future_complete(self, self.future_add_local)
+        return self.future_add_local.result()
 
     def wait_for_all_agents(self):
-        self.future = self.wait_agent_cli.call_async(self.wait_agent_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        self.future_wait = self.wait_agent_cli.call_async(self.wait_agent_req)
+        rclpy.spin_until_future_complete(self, self.future_wait, timeout_sec=5.0)
+        return self.future_wait.result()
     
     def get_new_weights_request(self, message):
         self.update_req.data = message
-        self.future = self.update_cli.call_async(self.update_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        self.future_get_global = self.update_cli.call_async(self.update_req)
+        rclpy.spin_until_future_complete(self, self.future_get_global, timeout_sec=5.0)
+        return self.future_get_global.result()
     
     def remove_agent_from_network(self, name):
         self.remove_agent_req.data = name
-        self.future = self.remove_agent_cli.call_async(self.remove_agent_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        self.future_remove = self.remove_agent_cli.call_async(self.remove_agent_req)
+        rclpy.spin_until_future_complete(self, self.future_remove)
+        return self.future_remove.result()
 
 class UnityAgent:
     def __init__(self, agent_name, state_dim, action_dim, save_dir=None, checkpoint=None, testing=None):
@@ -281,7 +285,9 @@ class UnityAgent:
         else:
             while rclpy.ok():
                 response = self.federated_connection.get_new_weights_request(self.agent_name)
-                if response.success is True:
+                if response is None:
+                    continue
+                elif response.success is True:
                     # Update loss with new global value
                     # and set torch.no_grad() to keep the same grad_fn
                     with torch.no_grad():
@@ -294,7 +300,9 @@ class UnityAgent:
             
             while rclpy.ok():
                 response = self.federated_connection.wait_for_all_agents()
-                if response.success is True:
+                if response is None:
+                    continue
+                elif response.success is True:
                     break    
     
     def add_agent_to_federated_network(self):
