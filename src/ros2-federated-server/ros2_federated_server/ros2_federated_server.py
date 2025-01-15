@@ -9,6 +9,7 @@ import sys
 import numpy as np
 import json
 from threading import Lock
+import torch
 
 class FederatedServer(Node):
     def __init__(self):
@@ -16,7 +17,7 @@ class FederatedServer(Node):
         self._n_agents = 0
         self._agents_list = []
         self._agents_ready = dict() 
-        self._fl_loss = 0.0
+        self._fl_loss = []
         self._lock = Lock()
 
         super().__init__('federated_server')
@@ -139,7 +140,7 @@ class FederatedServer(Node):
             if self._agents_ready[agent] == 0:
                 return False
         
-        self._fl_loss = 0.0
+        self._fl_loss = []
 
         return True
 
@@ -147,18 +148,29 @@ class FederatedServer(Node):
         self.get_logger().info(f'add_to_global :: {request["client"]} is entering.')
         agent = request["client"]
         agent_loss = request["local_value"]
-        self.get_logger().info(f'add_to_global :: Loss from {request["client"]}: {agent_loss}')
+        # self.get_logger().info(f'add_to_global :: Loss from {request["client"]}: {agent_loss}')
         
         with self._lock:
             self._agents_counter += 1
             self._agents_ready[agent] = 0
+            agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
             self._fl_loss = self._fl_loss + agent_loss
+            self._fl_loss = np.array(self._fl_loss)
         
         self.get_logger().info(f'add_to_global :: Counter {self._agents_counter}')
 
     def get_average(self):
         with self._lock:
-            return self._fl_loss / self._n_agents
+            new_global = self._fl_loss / self._n_agents
+            new_arr = [vector.tolist() for vector in new_global]
+
+            message = {
+                "weights": new_arr
+            }
+
+            response = json.dumps(message)
+
+            return response
 
     
 

@@ -7,27 +7,21 @@ class Net(nn.Module):
     '''
     def __init__(self, input_dim, output_dim):
         super().__init__()
-        c, h, w = input_dim
-
-        if h != 84:
-            raise ValueError(f"Expecting input height: 84, got: {h}")
-        if w != 84:
-            raise ValueError(f"Expecting input width: 84, got: {w}")
-
         # (w-f + 2P) / s + 1
         self.online = nn.Sequential(
-            nn.Conv2d(in_channels=c, out_channels=32, kernel_size=(3,3), stride=(3,3)), # 28x28
+            nn.Linear(input_dim, 128),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=(3,3), stride=(3,3)), # 9x9
+            nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=(3,3), stride=(3,3)), # 3x3
+            nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(32*3*3, 32),
+            nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(32, 16),
+            nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(16, output_dim)
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, output_dim)
         )
 
         self.target = copy.deepcopy(self.online)

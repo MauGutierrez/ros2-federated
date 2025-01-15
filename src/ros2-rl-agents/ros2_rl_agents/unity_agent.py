@@ -260,21 +260,14 @@ class UnityAgent:
         if self.start_optimizer is False:
             return None
         
-        # Sample from memory
-        state, next_state, action, reward, done = self.recall()
-
-        # Get TD Estimate
-        td_est = self.td_estimate(state, action)
-
-        # Get TD Target
-        td_tgt = self.td_target(reward, next_state, done)
-
-        # Backpropagate loss through Q_online
-        loss = self.loss_fn(td_est, td_tgt)
+        if self.curr_step % self.sync_every == 0:
+            self.sync_Q_target()
+        
+        batch_gradients = self.accumulate_gradients()
         
         message = {
             "client": self.agent_name,
-            "local_value": loss.item()
+            "local_value": batch_gradients
         }
 
         message = json.dumps(message)
@@ -291,11 +284,13 @@ class UnityAgent:
                     # Update loss with new global value
                     # and set torch.no_grad() to keep the same grad_fn
                     with torch.no_grad():
-                        new_loss = response.global_value
-                        loss.set_(torch.Tensor([new_loss]).to(self.device)[0])
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    self.optimizer.step()
+                        json_data = json.loads(response.global_value)
+                        new_global = json_data["weights"]
+                        new_loss = [torch.tensor(vector).float() for vector in new_global]
+                        for param, grad in zip(self.net.online.parameters(), new_loss):
+                            grad = grad.to(self.device)
+                            param.grad = grad
+                        self.optimizer.step()
                     break
             
             while rclpy.ok():
@@ -305,6 +300,22 @@ class UnityAgent:
                 elif response.success is True:
                     break    
     
+    def accumulate_gradients(self):
+        self.optimizer.zero_grad()
+        state, next_state, action, reward, done = self.recall()
+
+        # Get TD Estimate
+        td_est = self.td_estimate(state, action)
+
+        # Get TD Target
+        td_tgt = self.td_target(reward, next_state, done)
+
+        loss = self.loss_fn(td_est, td_tgt)
+        loss.backward()
+
+        return [param.grad.clone().detach().cpu().numpy().tolist() for param in self.net.online.parameters()]
+
+
     def add_agent_to_federated_network(self):
         response = self.federated_connection.add_agent_to_network(self.agent_name)
         if response.success is False:

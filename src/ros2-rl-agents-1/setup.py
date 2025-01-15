@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'run_agent = ros2_rl_agents_1.ros2_rl_agents_1:main',
+            'test_agent = ros2_rl_agents_1.ros2_rl_agents_evaluate_1:main'
         ],
     },
 )

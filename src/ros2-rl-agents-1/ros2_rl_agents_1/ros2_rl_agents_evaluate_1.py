@@ -1,24 +1,21 @@
 import datetime
 import json
-import numpy as np
 import os
-import random
 import rclpy
 import torch
 
 from pathlib import Path
-from ros2_rl_agents.unity_env import UnityEnv
-from ros2_rl_agents.unity_agent import UnityAgent
-from ros2_rl_agents.metrics import MetricLogger
+from ros2_rl_agents_1.unity_env import UnityEnv
+from ros2_rl_agents_1.unity_agent import UnityAgent
+from ros2_rl_agents_1.metrics import MetricLogger
 from ament_index_python.packages import get_package_share_directory
 
-NAME = "agent_1"
+NAME = "agent_2"
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints/agent_1/2025-01-14T14-12-59/ros_net_1.chkpt')
-# checkpoint = None
+checkpoint = Path('checkpoints/agent_2/2025-01-14T14-13-00/ros_net_1.chkpt')
 
 OBSERVATION_SPACE = 6
 ACTION_SPACE = 3
@@ -68,7 +65,6 @@ def main():
                 goal = info["goal"]
                 logger.log_episode(collision, goal)
                 break
-        
 
         if e % 20 == 0:
             logger.record(
