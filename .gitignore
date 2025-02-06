@@ -1,6 +1,6 @@
 build
 install
-log
+log/
 dataset
 results
 .vscode
