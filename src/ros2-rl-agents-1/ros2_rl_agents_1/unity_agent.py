@@ -88,7 +88,7 @@ class UnityAgent:
         self.batch_size = 32
 
         self.exploration_rate = 1
-        self.exploration_rate_decay = 0.9995
+        self.exploration_rate_decay = 0.999
         self.exploration_rate_min = 0.1
         self.gamma = 0.9
 
@@ -111,8 +111,8 @@ class UnityAgent:
         if checkpoint:
             self.load(checkpoint)
 
-        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.00025)
-        self.loss_fn = torch.nn.SmoothL1Loss()
+        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.001)
+        self.loss_fn = torch.nn.MSELoss()
         self.start_optimizer = False
 
 

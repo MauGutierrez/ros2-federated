@@ -11,12 +11,13 @@ class MetricLogger():
             with open(self.save_log, "w") as f:
                 f.write(
                     f"{'Episode':>8}{'Step':>8}{'Epsilon':>10}{'MeanReward':>15}"
-                    f"{'MeanCollisions':>15}{'MeanTimesGoalWasAchieved':>15}"
+                    f"{'Collisions':>15}{'Goal':>15}{'Not completed':>15}"
                     f"{'MeanLength':>15}{'MeanLoss':>15}{'MeanQValue':>15}"
                     f"{'TimeDelta':>15}{'Time':>20}\n"
                 )
             self.ep_collisions = 0
             self.ep_goals = 0
+            self.not_completed = 0
         
         else:
             with open(self.save_log, "w") as f:
@@ -58,7 +59,7 @@ class MetricLogger():
             self.curr_ep_q += q
             self.curr_ep_loss_length += 1
 
-    def log_episode(self, collision=None, goal=None):
+    def log_episode(self, collision=None, goal=None, not_completed=None):
         "Mark end of episode"
         self.ep_rewards.append(self.curr_ep_reward)
         self.ep_lengths.append(self.curr_ep_length)
@@ -73,6 +74,8 @@ class MetricLogger():
         if self.testing:
             self.ep_collisions += collision
             self.ep_goals += goal
+            if not_completed:
+                self.not_completed += 1
 
         self.init_episode()
 
@@ -105,7 +108,8 @@ class MetricLogger():
                 f"Epsilon {epsilon} - "
                 f"Mean Reward {mean_ep_reward} - "
                 f"Collisions {self.ep_collisions} - "
-                f"Times Goal was Achieved {self.ep_goals} - "
+                f"Goal {self.ep_goals} - "
+                f"Not completed {self.not_completed} - "
                 f"Mean Length {mean_ep_length} - "
                 f"Mean Loss {mean_ep_loss} - "
                 f"Mean Q Value {mean_ep_q} - "
@@ -116,13 +120,14 @@ class MetricLogger():
             with open(self.save_log, "a") as f:
                 f.write(
                     f"{episode:8d}{step:8d}{epsilon:10.3f}"
-                    f"{mean_ep_reward:15.3f}{self.ep_collisions:15.3f}{self.ep_goals:15.3f}{mean_ep_length:15.3f}{mean_ep_loss:15.3f}{mean_ep_q:15.3f}"
+                    f"{mean_ep_reward:15.3f}{self.ep_collisions:15.3f}{self.ep_goals:15.3f}{self.not_completed:15.3f}{mean_ep_length:15.3f}{mean_ep_loss:15.3f}{mean_ep_q:15.3f}"
                     f"{time_since_last_record:15.3f}"
                     f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
                 )
             
             self.ep_collisions = 0
             self.ep_goals = 0
+            self.not_completed = 0
 
         else:
             print(

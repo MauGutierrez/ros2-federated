@@ -17,12 +17,13 @@ use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints/agent_1/2025-01-14T14-12-59/ros_net_1.chkpt')
+checkpoint = Path('checkpoints_agents/agent_1/2025-02-02T02-41-42/ros_net_1.chkpt')
 # checkpoint = None
 
 OBSERVATION_SPACE = 6
 ACTION_SPACE = 3
-NUM_EPISODES = 100
+NUM_EPISODES = 800
+TESTING_LOOP = 200
 BATCH_SIZE = 64
 SEED = 42
 TESTING = True
@@ -48,11 +49,11 @@ def main():
     episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
-    for e in range(episodes):
+    for e in range(episodes+1):
         state, _ = env.reset()
 
         # Play the game!
-        while True:
+        for i in range(TESTING_LOOP):
             action = agent.act(state)
             
             next_state, reward, done, info = env.step(action)
@@ -67,6 +68,10 @@ def main():
                 collision = info["collision"]
                 goal = info["goal"]
                 logger.log_episode(collision, goal)
+                break
+
+            if i == TESTING_LOOP - 1:
+                logger.log_episode(collision=0, goal=0, not_completed=True)
                 break
         
 

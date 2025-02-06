@@ -103,17 +103,20 @@ class UnityEnv():
             self.agent_coordinates.rot_y = response.agent.rot_y
             self.agent_coordinates.rot_z = response.agent.rot_z
             # Get the initial angle between the agent and the objective
-            angle = response.vision_angle
-            del self.angles[:]
-            self.angles.append(angle)
-            self.previous_angle = angle
-            # Reset the number of collisions
+            self.previous_angle = response.vision_angle
+            self.previous_distance = self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates)
             self.collisions = 0
-            self.steps = 0
-            del self.distances[:]
-            current_distnace = self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates)
-            self.distances.append(current_distnace)
-            self.previous_distance = current_distnace
+
+            # del self.angles[:]
+            # self.angles.append(angle)
+            # self.previous_angle = angle
+            # # Reset the number of collisions
+            # self.collisions = 0
+            # self.steps = 0
+            # del self.distances[:]
+            # current_distnace = self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates)
+            # self.distances.append(current_distnace)
+            # self.previous_distance = current_distnace
         else:
             self.unity_obj.get_logger().warning('Initialization of Unity objects failed.')
             # observation = []
@@ -125,7 +128,7 @@ class UnityEnv():
         return np.array([
             self.agent_coordinates.pos_x, self.agent_coordinates.pos_z, 
             self.objective_coordinates.pos_x, self.objective_coordinates.pos_z, 
-            angle, self.collisions], dtype=np.float64), None
+            self.previous_angle, self.collisions], dtype=np.float64), None
     
     
     def step(self, action):
@@ -148,40 +151,49 @@ class UnityEnv():
         object_coordinates = response.output
         object_collision = response.collision
         # Get the current angle between the agent and the object
-        orientation_angle = response.vision_angle
-        self.angles.append(self.previous_angle - orientation_angle)
-        self.previous_angle = orientation_angle
-        # Get the current distance between A and B and the minimun distance of the episode
+        current_angle = response.vision_angle
         current_distance = self.__euclidean_distance(object_coordinates, self.objective_coordinates)
-        self.distances.append(self.previous_distance - current_distance)
+        angle_term = self.previous_angle - current_angle
+        distance_term = self.previous_distance - current_distance
+        self.previous_angle = current_angle
         self.previous_distance = current_distance
-        self.steps += 1
-
         done = False
-        distance_term = 0
-        angle_term = 0
-        collision = 0
         goal = 0
-        time_penalty = -0.02 * self.steps
+        collision = 0
+        # self.angles.append(self.previous_angle - current_angle)
+        # self.previous_angle = current_angle
+        # # Get the current distance between A and B and the minimun distance of the episode
+        # current_distance = self.__euclidean_distance(object_coordinates, self.objective_coordinates)
+        # self.distances.append(self.previous_distance - current_distance)
+        # self.previous_distance = current_distance
+        # self.steps += 1
 
-        if len(self.distances) == self.n_steps and len(self.angles) == self.n_steps:
-            distance_over_time = sum(self.distances)
-            angle_over_time = sum(self.angles)
-            if distance_over_time > 0 and angle_over_time > 0:
-                reward = (angle_over_time * 0.265) + (distance_over_time * 0.265)
-            else:
-                reward = time_penalty
+        # done = False
+        # distance_term = 0
+        # angle_term = 0
+        # collision = 0
+        # goal = 0
+        # time_penalty = -0.02 * self.steps
 
-            del self.distances[:]
-            del self.angles[:]
+        # if len(self.distances) == self.n_steps and len(self.angles) == self.n_steps:
+        #     distance_over_time = sum(self.distances)
+        #     angle_over_time = sum(self.angles)
+        #     if distance_over_time > 0 and angle_over_time > 0:
+        #         reward = (angle_over_time * 0.265) + (distance_over_time * 0.265)
+        #     else:
+        #         reward = time_penalty
+
+        #     del self.distances[:]
+        #     del self.angles[:]
             
-        else:
-            reward = 0
+        # else:
+        #     reward = 0
+
 
 
         if current_distance < DELTA_DISTANCE:
             done = True
-            reward = 20
+            reward = 10
             goal = 1
 
         # If there was a collision, it means a negative reward
@@ -190,7 +202,13 @@ class UnityEnv():
             self.collisions += 1
             collision = 1
             done = True
-            reward = -20
+            reward = -1
+        
+        elif angle_term > 0 and distance_term > 0:
+            reward = 0.1
+        
+        else:
+            reward = -0.01
         
         info = {
             "collision": collision,
@@ -201,7 +219,7 @@ class UnityEnv():
         return np.array([
             object_coordinates.pos_x, object_coordinates.pos_z, 
             self.objective_coordinates.pos_x, self.objective_coordinates.pos_z, 
-            orientation_angle, collision], dtype=np.float64), reward, done, info
+            current_angle, goal], dtype=np.float64), reward, done, info
     
     def __euclidean_distance(self, point_a, point_b) -> float:
         vector_a = np.array((point_a.pos_x, 0.0, point_a.pos_z))
