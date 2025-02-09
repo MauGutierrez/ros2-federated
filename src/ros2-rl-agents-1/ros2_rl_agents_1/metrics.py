@@ -6,26 +6,17 @@ class MetricLogger():
     def __init__(self, save_dir, testing=None):
         self.save_log = save_dir / "log"
 
-        self.testing = testing
-        if self.testing:
-            with open(self.save_log, "w") as f:
-                f.write(
-                    f"{'Episode':>8}{'Step':>8}{'Epsilon':>10}{'MeanReward':>15}"
-                    f"{'Collisions':>15}{'Goal':>15}{'Not completed':>15}"
-                    f"{'MeanLength':>15}{'MeanLoss':>15}{'MeanQValue':>15}"
-                    f"{'TimeDelta':>15}{'Time':>20}\n"
-                )
-            self.ep_collisions = 0
-            self.ep_goals = 0
-            self.not_completed = 0
-        
-        else:
-            with open(self.save_log, "w") as f:
-                f.write(
-                    f"{'Episode':>8}{'Step':>8}{'Epsilon':>10}{'MeanReward':>15}"
-                    f"{'MeanLength':>15}{'MeanLoss':>15}{'MeanQValue':>15}"
-                    f"{'TimeDelta':>15}{'Time':>20}\n"
-                )
+
+        with open(self.save_log, "w") as f:
+            f.write(
+                f"{'Episode':>8}{'Step':>8}{'Epsilon':>10}{'Reward':>15}"
+                f"{'Collisions':>15}{'Goal':>15}{'Not completed':>15}"
+                f"{'Length':>15}{'Loss':>15}{'QValue':>15}"
+                f"{'TimeDelta':>15}{'Time':>20}\n"
+            )
+        self.ep_collisions = 0
+        self.ep_goals = 0
+        self.not_completed = 0
 
         self.ep_rewards_plot = save_dir / "reward_plot.jpg"
         self.ep_lengths_plot = save_dir / "length_plot.jpg"
@@ -43,6 +34,11 @@ class MetricLogger():
         self.moving_avg_ep_lengths = []
         self.moving_avg_ep_avg_losses = []
         self.moving_avg_ep_avg_qs = []
+
+        self.moving_ep_rewards = []
+        self.moving_ep_lengths = []
+        self.moving_ep_avg_losses = []
+        self.moving_ep_avg_qs = []
 
         # Current episode metric
         self.init_episode()
@@ -71,11 +67,11 @@ class MetricLogger():
             ep_avg_q = np.round(self.curr_ep_q / self.curr_ep_loss_length, 5)
         self.ep_avg_losses.append(ep_avg_loss)
         self.ep_avg_qs.append(ep_avg_q)
-        if self.testing:
-            self.ep_collisions += collision
-            self.ep_goals += goal
-            if not_completed:
-                self.not_completed += 1
+
+        self.ep_collisions += collision
+        self.ep_goals += goal
+        if not_completed:
+            self.not_completed += 1
 
         self.init_episode()
 
@@ -101,56 +97,95 @@ class MetricLogger():
         self.record_time = time.time()
         time_since_last_record = np.round(self.record_time - last_record_time, 3)
 
-        if self.testing:
-            print(
-                f"Episode {episode} - "
-                f"Step {step} - "
-                f"Epsilon {epsilon} - "
-                f"Mean Reward {mean_ep_reward} - "
-                f"Collisions {self.ep_collisions} - "
-                f"Goal {self.ep_goals} - "
-                f"Not completed {self.not_completed} - "
-                f"Mean Length {mean_ep_length} - "
-                f"Mean Loss {mean_ep_loss} - "
-                f"Mean Q Value {mean_ep_q} - "
-                f"Time Delta {time_since_last_record} - "
-                f"Time {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"
+        print(
+            f"Episode {episode} - "
+            f"Step {step} - "
+            f"Epsilon {epsilon} - "
+            f"Mean Reward {mean_ep_reward} - "
+            f"Collisions {self.ep_collisions} - "
+            f"Goal {self.ep_goals} - "
+            f"Not completed {self.not_completed} - "
+            f"Mean Length {mean_ep_length} - "
+            f"Mean Loss {mean_ep_loss} - "
+            f"Mean Q Value {mean_ep_q} - "
+            f"Time Delta {time_since_last_record} - "
+            f"Time {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"
+        )
+
+        with open(self.save_log, "a") as f:
+            f.write(
+                f"{episode:8d}{step:8d}{epsilon:10.3f}"
+                f"{mean_ep_reward:15.3f}{self.ep_collisions:15.3f}{self.ep_goals:15.3f}{self.not_completed:15.3f}{mean_ep_length:15.3f}{mean_ep_loss:15.3f}{mean_ep_q:15.3f}"
+                f"{time_since_last_record:15.3f}"
+                f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
             )
+        
+        self.ep_collisions = 0
+        self.ep_goals = 0
+        self.not_completed = 0
 
-            with open(self.save_log, "a") as f:
-                f.write(
-                    f"{episode:8d}{step:8d}{epsilon:10.3f}"
-                    f"{mean_ep_reward:15.3f}{self.ep_collisions:15.3f}{self.ep_goals:15.3f}{self.not_completed:15.3f}{mean_ep_length:15.3f}{mean_ep_loss:15.3f}{mean_ep_q:15.3f}"
-                    f"{time_since_last_record:15.3f}"
-                    f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
-                )
-            
-            self.ep_collisions = 0
-            self.ep_goals = 0
-            self.not_completed = 0
-
-        else:
-            print(
-                f"Episode {episode} - "
-                f"Step {step} - "
-                f"Epsilon {epsilon} - "
-                f"Mean Reward {mean_ep_reward} - "
-                f"Mean Length {mean_ep_length} - "
-                f"Mean Loss {mean_ep_loss} - "
-                f"Mean Q Value {mean_ep_q} - "
-                f"Time Delta {time_since_last_record} - "
-                f"Time {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"
-            )
-
-            with open(self.save_log, "a") as f:
-                f.write(
-                    f"{episode:8d}{step:8d}{epsilon:10.3f}"
-                    f"{mean_ep_reward:15.3f}{mean_ep_length:15.3f}{mean_ep_loss:15.3f}{mean_ep_q:15.3f}"
-                    f"{time_since_last_record:15.3f}"
-                    f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
-                )
-
+        
         for metric in ["ep_rewards", "ep_lengths", "ep_avg_losses", "ep_avg_qs"]:
             plt.plot(getattr(self, f"moving_avg_{metric}"))
             plt.savefig(getattr(self, f"{metric}_plot"))
             plt.clf()
+        
+    def log_raw(self, episode, epsilon, step, collision=None, goal=None, not_completed=None):
+        "Mark end of episode"
+        if self.curr_ep_loss_length == 0:
+            ep_avg_loss = 0
+            ep_avg_q = 0
+        else:
+            ep_avg_loss = np.round(self.curr_ep_loss / self.curr_ep_loss_length, 5)
+            ep_avg_q = np.round(self.curr_ep_q / self.curr_ep_loss_length, 5)
+
+        
+        self.ep_collisions += collision
+        self.ep_goals += goal
+        if not_completed:
+            self.not_completed += 1
+
+        self.moving_ep_rewards.append(self.curr_ep_reward)
+        self.moving_ep_lengths.append(self.curr_ep_length)
+        self.moving_ep_avg_losses.append(ep_avg_loss)
+        self.moving_ep_avg_qs.append(ep_avg_q)
+
+
+        last_record_time = self.record_time
+        self.record_time = time.time()
+        time_since_last_record = np.round(self.record_time - last_record_time, 3)
+
+        print(
+            f"Episode {episode} - "
+            f"Step {step} - "
+            f"Epsilon {epsilon} - "
+            f"Reward {self.curr_ep_reward} - "
+            f"Collisions {self.ep_collisions} - "
+            f"Goal {self.ep_goals} - "
+            f"Not completed {self.not_completed} - "
+            f"Length {self.curr_ep_length} - "
+            f"Loss {ep_avg_loss} - "
+            f"Q Value {ep_avg_q} - "
+            f"Time Delta {time_since_last_record} - "
+            f"Time {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"
+        )
+
+        with open(self.save_log, "a") as f:
+            f.write(
+                f"{episode:8d}{step:8d}{epsilon:10.3f}"
+                f"{self.curr_ep_reward:15.3f}{self.ep_collisions:15.3f}{self.ep_goals:15.3f}{self.not_completed:15.3f}{self.curr_ep_length:15.3f}{ep_avg_loss:15.3f}{ep_avg_q:15.3f}"
+                f"{time_since_last_record:15.3f}"
+                f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
+            )
+        
+        self.ep_collisions = 0
+        self.ep_goals = 0
+        self.not_completed = 0
+
+        
+        for metric in ["ep_rewards", "ep_lengths", "ep_avg_losses", "ep_avg_qs"]:
+            plt.plot(getattr(self, f"moving_{metric}"))
+            plt.savefig(getattr(self, f"{metric}_plot"))
+            plt.clf()
+        
+        self.init_episode()

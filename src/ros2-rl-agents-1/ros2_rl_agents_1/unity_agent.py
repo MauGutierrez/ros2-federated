@@ -88,7 +88,7 @@ class UnityAgent:
         self.batch_size = 32
 
         self.exploration_rate = 1
-        self.exploration_rate_decay = 0.999
+        self.exploration_rate_decay = 0.9992
         self.exploration_rate_min = 0.1
         self.gamma = 0.9
 

@@ -20,7 +20,7 @@ save_dir.mkdir(parents=True)
 # checkpoint = Path('checkpoints/agent_1/2024-10-26T14-53-11/ros_net_3.chkpt')
 logger = MetricLogger(save_dir)
 
-OBSERVATION_SPACE = 6
+OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
 NUM_EPISODES = 800
 BATCH_SIZE = 64
@@ -54,7 +54,8 @@ def main():
     ### for Loop that train the model num_episodes times by playing the game
     for e in range(episodes):
         state, _ = env.reset()
-
+        collision = 0
+        goal = 0
         # Play the game!
         while True:
 
@@ -65,7 +66,7 @@ def main():
             action = agent.act(state)
             
             # 5. Agent performs action
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, info = env.step(action)
 
             # 6. Remember
             agent.cache(state, next_state, action, reward, done)
@@ -81,19 +82,21 @@ def main():
 
             # 10. Check if end of game
             if done:
+                collision = info["collision"]
+                goal = info["goal"]
                 break
         
-        logger.log_episode()
 
         # 11. Update the exploration rate after every episode
         agent.update_exploration_rate()
         
-        if e % 20 == 0:
-            logger.record(
-                episode=e,
-                epsilon=agent.exploration_rate,
-                step=agent.curr_step
-            )
+        logger.log_raw(
+            episode=e,
+            epsilon=agent.exploration_rate,
+            step=agent.curr_step,
+            collision=collision,
+            goal=goal
+        )
         
         if e % 200 == 0:    
             agent.update_optimizer()
