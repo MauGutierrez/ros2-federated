@@ -17,7 +17,7 @@ use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints_train_new_reward/agent_1/2025-02-08T01-14-13/ros_net_3.chkpt')
+checkpoint = Path('checkpoints_train_new_reward/agent_1/2025-02-08T19-34-01/ros_net_3.chkpt')
 # checkpoint = None
 
 OBSERVATION_SPACE = 7

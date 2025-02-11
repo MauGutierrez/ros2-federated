@@ -15,9 +15,9 @@ use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints_agents/agent_3/2025-02-02T02-41-41/ros_net_1.chkpt')
+checkpoint = Path('checkpoints_train_new_reward/agent_3/2025-02-08T19-34-01/ros_net_3.chkpt')
 
-OBSERVATION_SPACE = 6
+OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
 NUM_EPISODES = 800
 TESTING_LOOP = 200
@@ -46,8 +46,11 @@ def main():
     episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
-    for e in range(episodes+1):
+    for e in range(episodes):
         state, _ = env.reset()
+        collision = 0
+        goal = 0
+        not_completed = False
 
         # Play the game!
         for i in range(TESTING_LOOP):
@@ -64,19 +67,21 @@ def main():
             if done:
                 collision = info["collision"]
                 goal = info["goal"]
-                logger.log_episode(collision, goal)
                 break
             
             if i == TESTING_LOOP - 1:
-                logger.log_episode(collision=0, goal=0, not_completed=True)
+                not_completed = True
                 break
 
-        if e % 20 == 0:
-            logger.record(
-                episode=e,
-                epsilon=agent.exploration_rate,
-                step=agent.curr_step
-            )
+       
+        logger.log_raw(
+            episode=e,
+            epsilon=agent.exploration_rate,
+            step=agent.curr_step,
+            collision=collision,
+            goal=goal,
+            not_completed=not_completed
+        )
         
         # 11. Update the exploration rate after every episode
         # agent.update_exploration_rate()
