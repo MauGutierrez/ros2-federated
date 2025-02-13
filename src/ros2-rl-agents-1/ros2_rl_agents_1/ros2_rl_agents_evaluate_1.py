@@ -10,16 +10,16 @@ from ros2_rl_agents_1.unity_agent import UnityAgent
 from ros2_rl_agents_1.metrics import MetricLogger
 from ament_index_python.packages import get_package_share_directory
 
-NAME = "agent_3"
+NAME = "agent_2"
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints_train_new_reward/agent_3/2025-02-08T19-34-01/ros_net_3.chkpt')
+checkpoint = Path('checkpoints_train_last/agent_2/2025-02-12T17-03-25/ros_net_3.chkpt')
 
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
-NUM_EPISODES = 800
+NUM_EPISODES = 200
 TESTING_LOOP = 200
 BATCH_SIZE = 64
 SEED = 42

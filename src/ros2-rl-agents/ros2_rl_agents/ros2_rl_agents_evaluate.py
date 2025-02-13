@@ -17,12 +17,12 @@ use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
 save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints_train_new_reward/agent_1/2025-02-08T19-34-01/ros_net_3.chkpt')
+checkpoint = Path('checkpoints_train_last/agent_1/2025-02-12T17-03-27/ros_net_3.chkpt')
 # checkpoint = None
 
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
-NUM_EPISODES = 800
+NUM_EPISODES = 200
 TESTING_LOOP = 200
 BATCH_SIZE = 64
 SEED = 42
@@ -37,7 +37,7 @@ def main():
     # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=10)
+    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=20)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
 

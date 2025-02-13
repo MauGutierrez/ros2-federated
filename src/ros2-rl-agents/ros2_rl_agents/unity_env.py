@@ -149,7 +149,7 @@ class UnityEnv():
         collision = 0
         if current_distance < DELTA_DISTANCE:
             done = True
-            reward = 2
+            reward = 1
             goal = 1
         # If there was a collision, it means a negative reward
         # and it has to stop this episode

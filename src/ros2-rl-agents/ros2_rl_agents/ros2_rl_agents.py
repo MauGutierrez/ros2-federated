@@ -39,7 +39,7 @@ def main():
     # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=10)
+    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=20)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
 
