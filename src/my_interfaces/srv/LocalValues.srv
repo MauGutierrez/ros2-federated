@@ -1,0 +1,5 @@
+string data     # string to request the update 
+---
+bool success    # indicate successful run of triggered service
+string message  # string response that contains an informational message
+string global_value  # float value that contains the global value

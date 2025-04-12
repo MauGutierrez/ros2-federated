@@ -1,96 +1,61 @@
 import datetime
 import json
+import numpy as np
 import os
+import random
 import rclpy
 import torch
 
-from rclpy.node import Node
-from collections import namedtuple
 from pathlib import Path
-from ros2_rl_agents.neural_net import Net
 from ros2_rl_agents.unity_env import UnityEnv
 from ros2_rl_agents.unity_agent import UnityAgent
 from ros2_rl_agents.metrics import MetricLogger
-
 from ament_index_python.packages import get_package_share_directory
 
-from example_interfaces.srv import Trigger
-from my_interfaces.srv import SendLocalWeights
-
+NAME = "agent_1"
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
-save_dir = Path('checkpoints') / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
 save_dir.mkdir(parents=True)
+# checkpoint = Path('checkpoints/agent_1/2024-10-26T14-53-11/ros_net_3.chkpt')
 logger = MetricLogger(save_dir)
-SKIP_FRAMES = 3
-FRAME_STACK = 4
+
+OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
-NUM_EPISODES = 500
-HEIGHT = 84
-WIDTH = 84
+NUM_EPISODES = 800
+BATCH_SIZE = 64
+SEED = 42
 
-# class FederatedAgent(Node):
-#     def __init__(self):
-#         super().__init__('federated_agent')
 
-#         # Client to request the initial model
-#         self.model_cli = self.create_client(Trigger, "download_model")
-#         while not self.model_cli.wait_for_service(timeout_sec=1.0):
-#             self.get_logger().info('service not available, waiting again...')
-#         self.model_req = Trigger.Request()
-
-#         # Client to request the addition of the weights
-#         self.weights_cli = self.create_client(SendLocalWeights, "add_weights")
-#         while not self.weights_cli.wait_for_service(timeout_sec=1.0):
-#             self.get_logger().info('service not available, waiting again...')
-#         self.weights_req = SendLocalWeights.Request()
-
-#         # Client to request the update of the weights
-#         self.update_cli = self.create_client(SendLocalWeights, "get_weights")
-#         while not self.update_cli.wait_for_service(timeout_sec=1.0):
-#             self.get_logger().info('service not available, waiting again...')
-#         self.update_req = SendLocalWeights.Request()
-
-#     def download_model_request(self):
-#         self.future = self.model_cli.call_async(self.model_req)
-#         rclpy.spin_until_future_complete(self, self.future)
-#         return self.future.result()
-    
-#     def add_local_weights_request(self, message):
-#         self.weights_req.data = message
-#         self.future = self.weights_cli.call_async(self.weights_req)
-#         rclpy.spin_until_future_complete(self, self.future)
-#         return self.future.result()
-    
-#     def get_new_weights_request(self):
-#         self.future = self.update_cli.call_async(self.update_req)
-#         rclpy.spin_until_future_complete(self, self.future)
-#         return self.future.result()
-    
 def main():
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
+    random.seed(SEED)
+    
     # Init ROS
     rclpy.init()
 
-    # Init client object to handle communication with server
-    # agent = FederatedAgent()
-
     # Load general settings saved in json file
-    settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, num_stack=FRAME_STACK, height=HEIGHT, width=WIDTH)
+    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=20)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
 
     # Setup Unity Agent
-    agent = UnityAgent(state_dim=(FRAME_STACK, HEIGHT, WIDTH), action_dim=n_actions, save_dir=save_dir, checkpoint=None)  
+    agent = UnityAgent(agent_name=NAME, state_dim=OBSERVATION_SPACE, action_dim=n_actions, save_dir=save_dir, checkpoint=None)   
     
+    # Add the agent to the federated network
+    agent.add_agent_to_federated_network()
+
     episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
     for e in range(episodes):
         state, _ = env.reset()
-
+        collision = 0
+        goal = 0
         # Play the game!
         while True:
 
@@ -101,7 +66,7 @@ def main():
             action = agent.act(state)
             
             # 5. Agent performs action
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, info = env.step(action)
 
             # 6. Remember
             agent.cache(state, next_state, action, reward, done)
@@ -117,21 +82,29 @@ def main():
 
             # 10. Check if end of game
             if done:
+                collision = info["collision"]
+                goal = info["goal"]
                 break
         
-        logger.log_episode()
 
-        if e % 20 == 0:
-            logger.record(
-                episode=e,
-                epsilon=agent.exploration_rate,
-                step=agent.curr_step
-            )
-        
         # 11. Update the exploration rate after every episode
         agent.update_exploration_rate()
+        
+        logger.log_raw(
+            episode=e,
+            epsilon=agent.exploration_rate,
+            step=agent.curr_step,
+            collision=collision,
+            goal=goal
+        )
 
-    # 12. Save the model
+        if e % 200 == 0:    
+            agent.update_optimizer()
+    
+    # 13. Remove agent from network
+    agent.remove_agent_from_federated_network()
+
+    # 14. Save the model
     agent.save()
 
     # Explicity destroy nodes 

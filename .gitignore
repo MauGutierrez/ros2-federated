@@ -1,8 +1,7 @@
 build
 install
-log
+log/
 dataset
 results
-scripts
 .vscode
 checkpoints

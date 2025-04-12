@@ -19,7 +19,7 @@ import torchvision.transforms as transforms
 
 
 # SECONDS_PER_EPISODE = 15.0
-DELTA_DISTANCE = 1.8000
+DELTA_DISTANCE = 2.0000
 DELTA_ANGLE = 10.0
 
 class Coordinates():
@@ -34,14 +34,14 @@ class Coordinates():
 
 class UnityObject(Node):
 
-    def __init__(self):
-        super().__init__('unity_object')
-        self.init_cli = self.create_client(InitUnityObjects, 'init_unity_objects')
+    def __init__(self, agent_name):
+        super().__init__('unity_object_' + agent_name)
+        self.init_cli = self.create_client(InitUnityObjects, 'init_unity_objects_1')
         while not self.init_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.inital_req = InitUnityObjects.Request()
 
-        self.actions_cli = self.create_client(PositionService, 'move_unity_object')
+        self.actions_cli = self.create_client(PositionService, 'move_unity_object_1')
         while not self.actions_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.action_req = PositionService.Request()
@@ -58,18 +58,23 @@ class UnityObject(Node):
         return self.future.result()
 
 class UnityEnv():
-    def __init__(self, action_space: int, num_stack:int, height:int, width:int) -> None:
-        self.unity_obj = UnityObject()
+    def __init__(self, action_space: int, agent_name:str, n_steps: int) -> None:
+        self.unity_obj = UnityObject(agent_name)
         self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.agent_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.collisions = 0
         self.action_space = Discrete(action_space)
         self._cv_bridge = CvBridge()
-        self.num_stack = num_stack
-        self.frames = deque(maxlen=num_stack)
+        # self.num_stack = num_stack
+        # self.frames = deque(maxlen=num_stack)
         self.distances = arr.array('d', [])
-        self.width = width
-        self.height = height
+        self.angles = arr.array('d', [])
+        # self.width = width
+        # self.height = height
+        self.n_steps = n_steps
+        self.initial_distance = 0
+        self.initial_angle = 0
+        self.steps = 0
 
     def reset(self):
         # Restart the initial coordinates of the object
@@ -82,7 +87,7 @@ class UnityEnv():
             # Start counting the time of an episode
             # self.episode_start = time.time()
             # Environment observation
-            observation = self.__unity_image_formater(response.unity_image)
+            # observation = self.__unity_image_formater(response.unity_image)
             # Initial coordinates of the objective
             self.objective_coordinates.pos_x = response.objective.pos_x
             self.objective_coordinates.pos_y = response.objective.pos_y
@@ -97,20 +102,24 @@ class UnityEnv():
             self.agent_coordinates.rot_x = response.agent.rot_x
             self.agent_coordinates.rot_y = response.agent.rot_y
             self.agent_coordinates.rot_z = response.agent.rot_z
-            # Reset the number of collisions
+            # Get the initial angle between the agent and the objective
+            self.initial_angle = response.vision_angle
+            self.initial_distance = self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates)
             self.collisions = 0
-            del self.distances[:]
-            self.distances.append(self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates))
+
         else:
             self.unity_obj.get_logger().warning('Initialization of Unity objects failed.')
-            observation = []
+            # observation = []
         
-        for _ in range(self.num_stack):
-            self.frames.append(observation)
+        # for _ in range(self.num_stack):
+        #     self.frames.append(observation)
         
-        stacked_observations = np.array(self.frames, dtype=np.float64, copy=True)
-
-        return stacked_observations, None
+        # stacked_observations = np.array(self.frames, dtype=np.float64, copy=True)
+        return np.array([
+            self.agent_coordinates.pos_x, self.agent_coordinates.pos_z, 
+            self.objective_coordinates.pos_x, self.objective_coordinates.pos_z, 
+            self.initial_angle, self.initial_distance, 0], dtype=np.float64), None
+    
     
     def step(self, action):
         # Here we need to put the logic to execute a step in Unity
@@ -127,50 +136,47 @@ class UnityEnv():
         # 2 - rotate right
         response = self.unity_obj.request_action_to_unity(action)
         # Get the Image, coordinates and collisions from unity object
-        observation = self.__unity_image_formater(response.unity_image)
-        self.frames.append(observation)
+        # observation = self.__unity_image_formater(response.unity_image)
+        # self.frames.append(observation)
         object_coordinates = response.output
         object_collision = response.collision
         # Get the current angle between the agent and the object
-        orientation_angle = response.vision_angle
-        # Get the current distance between A and B and the minimun distance of the episode
+        current_angle = response.vision_angle
         current_distance = self.__euclidean_distance(object_coordinates, self.objective_coordinates)
-        min_distance = min(self.distances)
 
         done = False
-        distance_term = 0
-        angle_term = 0
-
-        if current_distance < min_distance:
-            distance_term = 1
-        
-        if orientation_angle < DELTA_ANGLE:
-            angle_term = 1
-
-        reward = angle_term - 0.01 + (0.005 * distance_term)
-
+        goal = 0
+        collision = 0
         if current_distance < DELTA_DISTANCE:
             done = True
             reward = 1
-
+            goal = 1
         # If there was a collision, it means a negative reward
         # and it has to stop this episode
-        if object_collision:
+        elif object_collision:
             self.collisions += 1
+            collision = 1
             done = True
             reward = -1
-
-        # If we have reached the time limit for every episode, it's a terminal state
-        # if self.episode_start + SECONDS_PER_EPISODE < time.time():
-        #     done = True
+        elif self.initial_distance > current_distance and self.initial_angle > current_angle:
+            reward = 0.1
+        else:
+            reward = -0.01
         
-        self.distances.append(current_distance)
+        info = {
+            "collision": collision,
+            "goal": goal
+        }
 
-        return np.array(self.frames, dtype=np.float64), reward, done, None
+        # return np.array(self.frames, dtype=np.float64), reward, done, None
+        return np.array([
+            object_coordinates.pos_x, object_coordinates.pos_z, 
+            self.objective_coordinates.pos_x, self.objective_coordinates.pos_z, 
+            current_angle, current_distance, goal], dtype=np.float64), reward, done, info
     
     def __euclidean_distance(self, point_a, point_b) -> float:
-        vector_a = np.array((point_a.pos_x, point_a.pos_y, point_a.pos_z))
-        vector_b = np.array((point_b.pos_x, point_b.pos_y, point_b.pos_z))
+        vector_a = np.array((point_a.pos_x, 0.0, point_a.pos_z))
+        vector_b = np.array((point_b.pos_x, 0.0, point_b.pos_z))
         dist = np.linalg.norm(vector_a - vector_b)
         return dist
 
