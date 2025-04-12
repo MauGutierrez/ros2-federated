@@ -25,6 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'main = ros2_federated_server.ros2_federated_server:main',
+            'test_1 = ros2_federated_server.ros2_test_1:main',
+            'test_2 = ros2_federated_server.ros2_test_2:main'
         ],
     },
 )

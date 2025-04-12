@@ -8,8 +8,11 @@ import os
 import sys
 import numpy as np
 import json
-from threading import Lock
+import time
 import torch
+
+from queue import Queue
+from threading import Lock, Thread
 
 class FederatedServer(Node):
     def __init__(self):
@@ -22,12 +25,25 @@ class FederatedServer(Node):
 
         super().__init__('federated_server')
         self.get_logger().info(f'Federated Server is running.')
-        # self.declare_parameters(
-        #     namespace='',
-        #     parameters=[
-        #         ('dataset', rclpy.Parameter.Type.STRING)
-        #     ]
-        # )
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('connection_mode', rclpy.Parameter.Type.STRING),
+                ('time_threshold', rclpy.Parameter.Type.INTEGER)
+            ]
+        )
+
+        # Var to select the type of connection (async/sync)
+        self.connection_mode = self.get_parameter('connection_mode').value
+        
+        # Queue to store the individual contributions
+        self.buffer = Queue()
+
+        # Time threshold
+        self.time_threshold = self.get_parameter('time_threshold').value * 1
+
+        # Timer
+        self.start_time = 0
 
         # Service to get the average of the weights
         self.update_weights_service_ = self.create_service(
@@ -69,6 +85,17 @@ class FederatedServer(Node):
         return response
 
     def callback_add_agent(self, request, response):
+        # Protocol to prevent super later nodes
+        if self.start_time > 0:
+            current_time = time.time()
+            elapsed_time = current_time - self.start_time
+            
+            if elapsed_time > self.time_threshold:
+                response.success = False
+                response.message = "Initialization phase is done. No new nodes can be added to the network."
+            
+                return response
+
         agent_name = request.data
         if agent_name is None or agent_name == "":
             response.success = False
@@ -80,9 +107,13 @@ class FederatedServer(Node):
             else:
                 self.get_logger().info(f'{agent_name} has been added to the federated network.')
                 with self._lock:
+                    if len(self._agents_list) == 0:
+                        self.start_time = time.time()
+                        
                     self._agents_list.append(agent_name)
                     self._agents_ready[agent_name] = 0
                     self._n_agents = len(self._agents_list)
+
                 self.get_logger().info(f'Agents in network: {self._n_agents}.')
                 response.success = True
                 response.message = "OK"
@@ -150,12 +181,14 @@ class FederatedServer(Node):
         agent_loss = request["local_value"]
         # self.get_logger().info(f'add_to_global :: Loss from {request["client"]}: {agent_loss}')
         
-        with self._lock:
-            self._agents_counter += 1
-            self._agents_ready[agent] = 0
-            agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
-            self._fl_loss = self._fl_loss + agent_loss
-            self._fl_loss = np.array(self._fl_loss)
+        if self.connection_mode == "async":
+            with self._lock:
+                self._agents_counter += 1
+                self._agents_ready[agent] = 0
+                agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
+                
+                self._fl_loss = self._fl_loss + agent_loss
+                self._fl_loss = np.array(self._fl_loss)
         
         self.get_logger().info(f'add_to_global :: Counter {self._agents_counter}')
 
