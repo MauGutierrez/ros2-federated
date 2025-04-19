@@ -11,10 +11,10 @@ import json
 import time
 import torch
 
-from queue import Queue
+from collections import deque
 from threading import Lock, Thread
 
-class FederatedServer(Node):
+class FederatedServerAsync(Node):
     def __init__(self):
         self._agents_counter = 0
         self._n_agents = 0
@@ -23,21 +23,20 @@ class FederatedServer(Node):
         self._fl_loss = []
         self._lock = Lock()
 
-        super().__init__('federated_server')
-        self.get_logger().info(f'Federated Server is running.')
+        super().__init__('federated_server_async')
+        self.get_logger().info(f'Federated Async Server is running.')
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('connection_mode', rclpy.Parameter.Type.STRING),
                 ('time_threshold', rclpy.Parameter.Type.INTEGER)
             ]
         )
 
         # Var to select the type of connection (async/sync)
-        self.connection_mode = self.get_parameter('connection_mode').value
+        # self.connection_mode = self.get_parameter('connection_mode').value
         
         # Queue to store the individual contributions
-        self.buffer = Queue()
+        self.buffer = deque()
 
         # Time threshold
         self.time_threshold = self.get_parameter('time_threshold').value * 1
@@ -121,7 +120,8 @@ class FederatedServer(Node):
         return response
 
     def callback_send_global(self, request, response):
-        if (self._agents_counter % self._n_agents) != 0:
+        # This will work only on the first phases since the agents don't have to wait anymore
+        if (len(self.buffer) < self._n_agents):
             response.success = False
             response.message = "Global new value is not ready yet"
         else:
@@ -181,19 +181,22 @@ class FederatedServer(Node):
         agent_loss = request["local_value"]
         # self.get_logger().info(f'add_to_global :: Loss from {request["client"]}: {agent_loss}')
         
-        if self.connection_mode == "async":
-            with self._lock:
-                self._agents_counter += 1
-                self._agents_ready[agent] = 0
-                agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
-                
-                self._fl_loss = self._fl_loss + agent_loss
-                self._fl_loss = np.array(self._fl_loss)
+        with self._lock:
+            self._agents_counter += 1
+            self._agents_ready[agent] = 0
+            agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
+            self.buffer.append(agent_loss)
+            if (len(self.buffer) == self._n_agents):
+                self.buffer.popleft()
         
         self.get_logger().info(f'add_to_global :: Counter {self._agents_counter}')
 
     def get_average(self):
         with self._lock:
+            for item in self.buffer:
+                self._fl_loss = self._fl_loss + item
+                self._fl_loss = np.array(self._fl_loss)
+
             new_global = self._fl_loss / self._n_agents
             new_arr = [vector.tolist() for vector in new_global]
 
@@ -204,13 +207,17 @@ class FederatedServer(Node):
             response = json.dumps(message)
 
             return response
+    
+    def run(self):
+        rclpy.spin(self)
 
     
 
 def main(args=None):            
     rclpy.init(args=args)
-    node = FederatedServer()
-    rclpy.spin(node)
+    server = FederatedServerAsync()
+    # rclpy.spin(node)
+    server.run()
     rclpy.shutdown()
 
 if __name__ == '__main__':

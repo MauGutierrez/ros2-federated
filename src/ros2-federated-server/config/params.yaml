@@ -1,4 +1,7 @@
-federated_server:
+federated_server_sync:
   ros__parameters:
-    connection_mode: "sync"
+    time_threshold: 1
+
+federated_server_async:
+  ros__parameters:
     time_threshold: 1

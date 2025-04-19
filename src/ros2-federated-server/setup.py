@@ -24,7 +24,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'main = ros2_federated_server.ros2_federated_server:main',
+            'main = ros2_federated_server.main:main',
             'test_1 = ros2_federated_server.ros2_test_1:main',
             'test_2 = ros2_federated_server.ros2_test_2:main'
         ],
