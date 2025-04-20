@@ -1,11 +1,8 @@
 import rclpy 
 from rclpy.node import Node
-from example_interfaces.srv import Trigger
 from my_interfaces.srv import LocalValues
 from my_interfaces.srv import ConfigureAgent
 
-import os
-import sys
 import numpy as np
 import json
 import time

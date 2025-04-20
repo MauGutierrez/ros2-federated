@@ -36,7 +36,9 @@ def main():
     rclpy.init()
 
     # Load general settings saved in json file
-    # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    # Sync or Async mode
+    connection_mode = settings["connection_mode"]
 
     # Setup UnityEnv environment
     env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=20)
@@ -44,7 +46,7 @@ def main():
     n_actions = env.action_space.n
 
     # Setup Unity Agent
-    agent = UnityAgent(agent_name=NAME, state_dim=OBSERVATION_SPACE, action_dim=n_actions, save_dir=save_dir, checkpoint=None)   
+    agent = UnityAgent(agent_name=NAME, state_dim=OBSERVATION_SPACE, action_dim=n_actions, connection_mode=connection_mode, save_dir=save_dir, checkpoint=None)   
     
     # Add the agent to the federated network
     agent.add_agent_to_federated_network()
@@ -99,7 +101,7 @@ def main():
         )
 
         if e % 200 == 0:    
-            agent.update_optimizer()
+            agent.federated_round()
     
     # 13. Remove agent from network
     agent.remove_agent_from_federated_network()

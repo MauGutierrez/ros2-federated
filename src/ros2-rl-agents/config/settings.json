@@ -7,5 +7,6 @@
         "EPS_DECAY" : 1000,
         "TAU": 0.005,
         "LR": 1e-4
-    }
+    },
+    "connection_mode": "async"
 }

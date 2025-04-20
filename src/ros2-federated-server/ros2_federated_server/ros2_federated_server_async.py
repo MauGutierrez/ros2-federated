@@ -1,11 +1,8 @@
 import rclpy 
 from rclpy.node import Node
-from example_interfaces.srv import Trigger
 from my_interfaces.srv import LocalValues
 from my_interfaces.srv import ConfigureAgent
 
-import os
-import sys
 import numpy as np
 import json
 import time
@@ -19,7 +16,6 @@ class FederatedServerAsync(Node):
         self._agents_counter = 0
         self._n_agents = 0
         self._agents_list = []
-        self._agents_ready = dict() 
         self._fl_loss = []
         self._lock = Lock()
 
@@ -31,10 +27,7 @@ class FederatedServerAsync(Node):
                 ('time_threshold', rclpy.Parameter.Type.INTEGER)
             ]
         )
-
-        # Var to select the type of connection (async/sync)
-        # self.connection_mode = self.get_parameter('connection_mode').value
-        
+    
         # Queue to store the individual contributions
         self.buffer = deque()
 
@@ -64,9 +57,9 @@ class FederatedServerAsync(Node):
             LocalValues, "get_global_value", self.callback_send_global
         )
 
-        # Service to synchronize all the agents in the network
-        self.wait_for_all_agents_ = self.create_service(
-            ConfigureAgent, "wait_for_all_agents", self.callback_wait
+        # Service to wait until the buffer is ready to be used
+        self.wait_for_the_buffer = self.create_service(
+            ConfigureAgent, "wait_for_buffer", self.callback_wait
         )
     
 
@@ -82,6 +75,7 @@ class FederatedServerAsync(Node):
             response.message = "Weights added. Wait for all the other clients"
         
         return response
+    
 
     def callback_add_agent(self, request, response):
         # Protocol to prevent super later nodes
@@ -110,7 +104,6 @@ class FederatedServerAsync(Node):
                         self.start_time = time.time()
                         
                     self._agents_list.append(agent_name)
-                    self._agents_ready[agent_name] = 0
                     self._n_agents = len(self._agents_list)
 
                 self.get_logger().info(f'Agents in network: {self._n_agents}.')
@@ -118,33 +111,29 @@ class FederatedServerAsync(Node):
                 response.message = "OK"
         
         return response
+    
 
     def callback_send_global(self, request, response):
-        # This will work only on the first phases since the agents don't have to wait anymore
-        if (len(self.buffer) < self._n_agents):
-            response.success = False
-            response.message = "Global new value is not ready yet"
-        else:
-            self.get_logger().info(f'callback_send_global :: Sending average to: {request.data}.')
-            agent_name = request.data
-            data = self.get_average()
-            response.success = True
-            response.message = "OK"
-            response.global_value = data
-            with self._lock:
-                self._agents_ready[agent_name] = 1
+        self.get_logger().info(f'callback_send_global :: Sending average to: {request.data}.')
+        agent_name = request.data
+        data = self.get_average()
+        response.success = True
+        response.message = "OK"
+        response.global_value = data
         
         return response
+    
 
     def callback_wait(self, request, response):
-        if self.all_agents_ready() == False:
+        if (len(self.buffer) == 0) or (len(self.buffer) < self._n_agents):
             response.success = False
-            response.message = "Wait for all the agents to be ready"
+            response.message = "Wait for the buffer to be ready"
         else:
             response.success = True
-            response.message = "All agents are ready"
+            response.message = "Buffer is ready"
 
         return response
+    
 
     def callback_remove_agent(self, request, response):
         agent_name = request.data
@@ -159,21 +148,12 @@ class FederatedServerAsync(Node):
                 self.get_logger().info(f'{agent_name} has been removed from the federated network.')
                 with self._lock:
                     self._agents_list.remove(agent_name)
-                    del self._agents_ready[agent_name]
                     self._n_agents = len(self._agents_list)
                 response.success = True
                 response.message = "OK"
                 
         return response
-
-    def all_agents_ready(self):
-        for agent in self._agents_ready:
-            if self._agents_ready[agent] == 0:
-                return False
-        
-        self._fl_loss = []
-
-        return True
+    
 
     def add_to_global_value(self, request):
         self.get_logger().info(f'add_to_global :: {request["client"]} is entering.')
@@ -183,13 +163,13 @@ class FederatedServerAsync(Node):
         
         with self._lock:
             self._agents_counter += 1
-            self._agents_ready[agent] = 0
             agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
             self.buffer.append(agent_loss)
             if (len(self.buffer) == self._n_agents):
                 self.buffer.popleft()
         
         self.get_logger().info(f'add_to_global :: Counter {self._agents_counter}')
+
 
     def get_average(self):
         with self._lock:
