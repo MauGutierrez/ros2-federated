@@ -36,8 +36,12 @@ def main():
     rclpy.init()
 
     # Load general settings saved in json file
-    settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
-    # Sync or Async mode
+    settings_path = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    
+    with open(settings_path, 'r') as file:
+        settings = json.load(file)
+    
+    # Sync or Async mode    
     connection_mode = settings["connection_mode"]
 
     # Setup UnityEnv environment

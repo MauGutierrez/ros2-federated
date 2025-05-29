@@ -164,10 +164,14 @@ class FederatedServerAsync(Node):
         with self._lock:
             self._agents_counter += 1
             agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
-            self.buffer.append(agent_loss)
-            if (len(self.buffer) == self._n_agents):
+            
+            # First check if I have to pop the element
+            if (len(self.buffer) >= self._n_agents):
                 self.buffer.popleft()
-        
+            
+            # Then insert the new element
+            self.buffer.append(agent_loss)
+            
         self.get_logger().info(f'add_to_global :: Counter {self._agents_counter}')
 
 

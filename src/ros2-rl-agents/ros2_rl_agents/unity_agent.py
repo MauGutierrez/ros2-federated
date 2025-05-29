@@ -202,13 +202,7 @@ class UnityAgent:
         
         # In async mode we only have to wait for the buffer to be full
         if self.connection_mode == "async":
-            response = self.federated_connection.wait()
-            if response.success is False:
-                self.federated_connection.get_logger().info("Buffer is not ready yet. Continue local training.")
-
-                return None
-            else:
-                self.update_optimizer_async(self.accumulate_gradients())
+            self.update_optimizer_async(self.accumulate_gradients())
         else:
             self.update_optimizer_sync(self.accumulate_gradients())
         
@@ -221,11 +215,20 @@ class UnityAgent:
 
         message = json.dumps(message)
 
+        # First add them to the buffer
         response = self.federated_connection.add_local_weights_request(message)
         if response.success is False:
             print("Failure")
         else:
-            while rclpy.ok():
+            # If the addition was correct, then I need to check if the buffer is ready
+            response = self.federated_connection.wait()
+            # If the buffer is not ready, we must return 
+            if response.success is False:
+                self.federated_connection.get_logger().info("Buffer is not ready yet. Continue local training.")
+            
+                return None
+            # Otherwise, the buffer is ready and we can continue
+            else:
                 response = self.federated_connection.get_new_weights_request(self.agent_name)
                 if response.success is True:
                     # Update loss with new global value
@@ -238,7 +241,7 @@ class UnityAgent:
                             grad = grad.to(self.device)
                             param.grad = grad
                         self.optimizer.step()
-                    break
+                    self.federated_connection.get_logger().info("Local model has been updated with the new global.")
                 else:
                     self.federated_connection.get_logger().error("There was an error calculating the new global.")
                     return None
