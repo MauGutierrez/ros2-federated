@@ -65,9 +65,9 @@ DELTA_ANGLE = 10.0
 class UnityNetwork():
     def __init__(self, agent_name):
         self.agent_id = agent_name
-        self.url = "http://localhost:9000/ros"
+        self.url = "http://192.168.68.103:8080/ros"
 
-    def format_response(self, data):
+    def format_response(self, response):
         data = json.loads(response)
 
         # Convert dicts into dataclasses 
@@ -108,10 +108,11 @@ class UnityNetwork():
 
             self.format_response(resp)
         except Exception as e:
+            print("Request Failed")
             # self.get_logger().error(f"Request failed: {e}")
-
+        
         return resp
-
+    
     def request_action_to_unity(self, action):
         payload = {
             "agent_id": self.agent_id,
@@ -121,16 +122,17 @@ class UnityNetwork():
 
         resp = None
         try:
-            resp = requests.post{
+            resp = requests.post(
                 self.url,
                 headers={"Content-Type": "application/json"},
                 data=json.dumps(payload),
                 timeout=10
-            }
+            )
 
             self.format_response(resp)
 
         except Exception as e:
+            print("Request Failed")
             # self.get_logger().error(f"Request failed: " {e})
         
         return resp

@@ -22,7 +22,7 @@ setup(
     maintainer_email='mauricio@todo.todo',
     description='TODO: Package description',
     license='TODO: License declaration',
-    tests_require=['pytest'],
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
             'client_1 = ros2_federated_agents.client_1:main',

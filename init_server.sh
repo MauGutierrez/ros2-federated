@@ -1,6 +1,6 @@
 #!/bin/bash
-echo '/opt/ros/humble/setup.bash'
-source /opt/ros/humble/setup.bash
+echo '/opt/ros/jazzy/setup.bash'
+source /opt/ros/jazzy/setup.bash
 
 echo './install/setup.bash'
 source ./install/setup.bash
