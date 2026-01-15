@@ -4,4 +4,5 @@ log/
 dataset
 results
 .vscode
-checkpoints
+checkpoints*
+scripts*

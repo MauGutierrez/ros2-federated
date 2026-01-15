@@ -2,9 +2,11 @@ import cv2
 import math
 import numpy as np
 import random
+import requests
 import rclpy
 import time
 import array as arr
+import json
 
 from cv_bridge import CvBridge
 from collections import deque
@@ -17,51 +19,130 @@ from PIL import Image
 import torch
 import torchvision.transforms as transforms
 
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class Coordinates:
+    pos_x: float
+    pos_y: float
+    pos_z: float
+    rot_x: float
+    rot_y: float
+    rot_z: float
+    rot_w: float
+
+@dataclass
+class UnityData:
+    agent_coords: Coordinates
+    target_coords: Optional[Coordinates]  # optional because of `omitempty` in Go
+    collision: bool
+    success: bool
+    vision_angle: float
+
+@dataclass
+class UnityResponse:
+    agent_id: str
+    result: int
+    data: UnityData
+
+
 
 # SECONDS_PER_EPISODE = 15.0
 DELTA_DISTANCE = 2.0000
 DELTA_ANGLE = 10.0
 
-class Coordinates():
+# class Coordinates():
     
-    def __init__(self, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z) -> None:
-        self.pos_x = pos_x
-        self.pos_y = pos_y
-        self.pos_z = pos_z
-        self.rot_x = rot_x
-        self.rot_y = rot_y
-        self.rot_z = rot_z
+#     def __init__(self, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z) -> None:
+#         self.pos_x = pos_x
+#         self.pos_y = pos_y
+#         self.pos_z = pos_z
+#         self.rot_x = rot_x
+#         self.rot_y = rot_y
+#         self.rot_z = rot_z
 
-class UnityObject(Node):
-
+class UnityNetwork():
     def __init__(self, agent_name):
-        super().__init__('unity_object_' + agent_name)
-        self.init_cli = self.create_client(InitUnityObjects, 'init_unity_objects_1')
-        while not self.init_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service not available, waiting again...')
-        self.inital_req = InitUnityObjects.Request()
+        self.agent_id = agent_name
+        self.url = "http://192.168.68.103:8080/ros"
 
-        self.actions_cli = self.create_client(PositionService, 'move_unity_object_1')
-        while not self.actions_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service not available, waiting again...')
-        self.action_req = PositionService.Request()
+    def format_response(self, response):
+        data = json.loads(response)
 
+        # Convert dicts into dataclasses 
+        agent_coords = Coordinates(**data["data"]["agent_coords"]) 
+        target_coords = Coordinates(**data["data"]["target_coords"]) 
+        unity_data = UnityData( 
+            agent_coords=agent_coords, 
+            target_coords=target_coords, 
+            collision=data["data"]["collision"], 
+            success=data["data"]["success"], 
+            vision_angle=data["data"]["vision_angle"] 
+        ) 
+        
+        payload = UnityResponse( 
+            agent_id=data["agent_id"], 
+            result=data["result"], 
+            data=unity_data 
+        )
+
+        return payload
+
+    # TODO: get the correct fields of the response from the Go Server
     def request_init_unity_objects(self):
-        self.future = self.init_cli.call_async(self.inital_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        payload = {
+            "agent_id": self.agent_id,
+            "task": "INIT",
+            "data": ""
+        }
 
+        resp = None
+        try:
+            resp = requests.post(
+                self.url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(payload),
+                timeout=10
+            )
+
+            self.format_response(resp)
+        except Exception as e:
+            print("Request Failed")
+            # self.get_logger().error(f"Request failed: {e}")
+        
+        return resp
+    
     def request_action_to_unity(self, action):
-        self.action_req.action = action
-        self.future = self.actions_cli.call_async(self.action_req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        payload = {
+            "agent_id": self.agent_id,
+            "task": "MOVE",
+            "data": {"action": action}
+        }
+
+        resp = None
+        try:
+            resp = requests.post(
+                self.url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(payload),
+                timeout=10
+            )
+
+            self.format_response(resp)
+
+        except Exception as e:
+            print("Request Failed")
+            # self.get_logger().error(f"Request failed: " {e})
+        
+        return resp
+
 
 class UnityEnv():
     def __init__(self, action_space: int, agent_name:str, n_steps: int) -> None:
-        self.unity_obj = UnityObject(agent_name)
-        self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        self.agent_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        self.unity_obj = UnityNetwork(agent_name)
+        # self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        # self.agent_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.collisions = 0
         self.action_space = Discrete(action_space)
         self._cv_bridge = CvBridge()
@@ -82,33 +163,35 @@ class UnityEnv():
         # Restart the flag to detect collisons
         # Get the initial observation
         response = self.unity_obj.request_init_unity_objects()
+
         # Get the initial observation Image
-        if response.success is True:
+        if response.data.success is True:
             # Start counting the time of an episode
             # self.episode_start = time.time()
             # Environment observation
             # observation = self.__unity_image_formater(response.unity_image)
             # Initial coordinates of the objective
-            self.objective_coordinates.pos_x = response.objective.pos_x
-            self.objective_coordinates.pos_y = response.objective.pos_y
-            self.objective_coordinates.pos_z = response.objective.pos_z
-            self.objective_coordinates.rot_x = response.objective.rot_x
-            self.objective_coordinates.rot_y = response.objective.rot_y
-            self.objective_coordinates.rot_z = response.objective.rot_z
+            # self.objective_coordinates.pos_x = response.objective.pos_x
+            # self.objective_coordinates.pos_y = response.objective.pos_y
+            # self.objective_coordinates.pos_z = response.objective.pos_z
+            # self.objective_coordinates.rot_x = response.objective.rot_x
+            # self.objective_coordinates.rot_y = response.objective.rot_y
+            # self.objective_coordinates.rot_z = response.objective.rot_z
             # Initial coordinates of the agent
-            self.agent_coordinates.pos_x = response.agent.pos_x
-            self.agent_coordinates.pos_y = response.agent.pos_y
-            self.agent_coordinates.pos_z = response.agent.pos_z
-            self.agent_coordinates.rot_x = response.agent.rot_x
-            self.agent_coordinates.rot_y = response.agent.rot_y
-            self.agent_coordinates.rot_z = response.agent.rot_z
+            # self.agent_coordinates.pos_x = response.agent.pos_x
+            # self.agent_coordinates.pos_y = response.agent.pos_y
+            # self.agent_coordinates.pos_z = response.agent.pos_z
+            # self.agent_coordinates.rot_x = response.agent.rot_x
+            # self.agent_coordinates.rot_y = response.agent.rot_y
+            # self.agent_coordinates.rot_z = response.agent.rot_z
             # Get the initial angle between the agent and the objective
-            self.initial_angle = response.vision_angle
-            self.initial_distance = self.__euclidean_distance(self.agent_coordinates, self.objective_coordinates)
+            self.objective_coordinates = response.data.target_coords
+            self.initial_angle = response.data.vision_angle
+            self.initial_distance = self.__euclidean_distance(response.data.agent_coords, self.objective_coordinates)
             self.collisions = 0
 
         else:
-            self.unity_obj.get_logger().warning('Initialization of Unity objects failed.')
+            self.get_logger().warning('Initialization of Unity objects failed.')
             # observation = []
         
         # for _ in range(self.num_stack):
@@ -116,7 +199,7 @@ class UnityEnv():
         
         # stacked_observations = np.array(self.frames, dtype=np.float64, copy=True)
         return np.array([
-            self.agent_coordinates.pos_x, self.agent_coordinates.pos_z, 
+            response.data.agent_coords.pos_x, response.data.agent_coords.pos_z, 
             self.objective_coordinates.pos_x, self.objective_coordinates.pos_z, 
             self.initial_angle, self.initial_distance, 0], dtype=np.float64), None
     
@@ -138,10 +221,10 @@ class UnityEnv():
         # Get the Image, coordinates and collisions from unity object
         # observation = self.__unity_image_formater(response.unity_image)
         # self.frames.append(observation)
-        object_coordinates = response.output
-        object_collision = response.collision
+        object_coordinates = response.data.agent_coords
+        object_collision = response.data.collision
         # Get the current angle between the agent and the object
-        current_angle = response.vision_angle
+        current_angle = response.data.vision_angle
         current_distance = self.__euclidean_distance(object_coordinates, self.objective_coordinates)
 
         done = False
