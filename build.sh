@@ -6,4 +6,4 @@ source /opt/ros/jazzy/setup.bash
 
 # Compile ros2-federated project
 echo 'Compilation of ROS 2 project'
-colcon build
+python3 -m colcon build
