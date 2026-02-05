@@ -266,13 +266,24 @@ class UnityAgent:
                 elif response.success is True:
                     # Update loss with new global value
                     # and set torch.no_grad() to keep the same grad_fn
+                    # with torch.no_grad():
+                    #     json_data = json.loads(response.global_value)
+                    #     new_global = json_data["weights"]
+                    #     new_loss = [torch.tensor(vector).float() for vector in new_global]
+                    #     for param, grad in zip(self.net.online.parameters(), new_loss):
+                    #         grad = grad.to(self.device)
+                    #         param.grad = grad
+                    #     self.optimizer.step()
                     with torch.no_grad():
                         json_data = json.loads(response.global_value)
-                        new_global = json_data["weights"]
-                        new_loss = [torch.tensor(vector).float() for vector in new_global]
-                        for param, grad in zip(self.net.online.parameters(), new_loss):
-                            grad = grad.to(self.device)
-                            param.grad = grad
+                        flat_global = np.array(json_data["weights"], dtype=np.float32)
+                        offset = 0
+                        for param in self.net.online.parameters():
+                            numel = param.numel()
+                            grad_slice = flat_global[offset:offset+numel]
+                            grad_tensor = torch.tensor(grad_slice, dtype=torch.float32).view_as(param).to(self.device)
+                            param.grad = grad_tensor
+                            offset += numel
                         self.optimizer.step()
                     break
             
@@ -297,7 +308,13 @@ class UnityAgent:
         loss = self.loss_fn(td_est, td_tgt)
         loss.backward()
 
-        return [param.grad.clone().detach().cpu().numpy().tolist() for param in self.net.online.parameters()]
+        grads = np.concatenate([
+            param.grad.clone().detach().cpu().numpy().ravel()
+            for param in self.net.online.parameters()
+        ])
+
+        # return [param.grad.clone().detach().cpu().numpy().tolist() for param in self.net.online.parameters()]
+        return grads.tolist()
 
 
     def add_agent_to_federated_network(self):

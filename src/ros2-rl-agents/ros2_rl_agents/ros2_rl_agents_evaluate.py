@@ -15,10 +15,7 @@ from ament_index_python.packages import get_package_share_directory
 NAME = "agent_1"
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
-save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
-save_dir.mkdir(parents=True)
-checkpoint = Path('checkpoints_train_last/agent_1/2025-02-12T17-03-27/ros_net_3.chkpt')
-# checkpoint = None
+
 
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
@@ -27,22 +24,38 @@ TESTING_LOOP = 200
 BATCH_SIZE = 64
 SEED = 42
 TESTING = True
-logger = MetricLogger(save_dir, testing=TESTING)
+# checkpoint = Path('checkpoints_train/agent_1/2026-02-05T01-25-27/ros_net_1.chkpt')
+
+def create_checkpoints_folder(agent_name: str):
+    save_dir = Path('checkpoints') / agent_name / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+    save_dir.mkdir(parents=True)
+
+    return save_dir
 
 def main():
     # Init ROS
     rclpy.init()
 
-    # Load general settings saved in json file
-    # settings = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    settings_path = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
+    
+    with open(settings_path, 'r') as file:
+        settings = json.load(file)
+    
+    # Sync or Async mode    
+    connection_mode = settings["connection_mode"]
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=20)
+    env = UnityEnv(action_space=ACTION_SPACE, n_steps=20)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
+    agent_name = env.agent_name
+    checkpoint = Path(env.checkpoint)
+
+    save_dir = create_checkpoints_folder(agent_name)
+    logger = MetricLogger(save_dir)
 
     # Setup Unity Agent
-    agent = UnityAgent(agent_name=NAME, state_dim=OBSERVATION_SPACE, action_dim=n_actions, save_dir=save_dir, checkpoint=checkpoint, testing=TESTING)   
+    agent = UnityAgent(agent_name=NAME, state_dim=OBSERVATION_SPACE, action_dim=n_actions, connection_mode=connection_mode, save_dir=save_dir, checkpoint=checkpoint, testing=TESTING)   
     
     agent.exploration_rate = agent.exploration_rate_min
 

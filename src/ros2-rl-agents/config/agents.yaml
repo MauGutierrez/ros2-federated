@@ -1,0 +1,27 @@
+agent_1:
+  ros__parameters:
+    agent_name: "agent_1"
+    checkpoint: "checkpoints_train/agent_1/2026-02-05T03-30-21/ros_net_1.chkpt"
+
+agent_2:
+  ros__parameters:
+    agent_name: "agent_2"
+    checkpoint: "checkpoints_train/agent_2/2026-02-05T03-30-21/ros_net_1.chkpt"
+
+agent_3:
+  ros__parameters:
+    agent_name: "agent_3"
+    checkpoint: "checkpoints_train/agent_3/2026-02-05T03-30-20/ros_net_1.chkpt"
+
+agent_4:
+  ros__parameters:
+    agent_name: "agent_4"
+    checkpoint: "checkpoints_train/agent_4/2026-02-05T03-30-21/ros_net_1.chkpt"
+
+# agent_5:
+#   ros__parameters:
+#     agent_name: "agent_5"
+
+# agent_6:
+#   ros__parameters:
+#     agent_name: "agent_6"
