@@ -18,9 +18,10 @@ print(f"Using CUDA: {use_cuda}")
 
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
-NUM_EPISODES = 800
+NUM_EPISODES = 15000
 BATCH_SIZE = 64
 SEED = 42
+TESTING = False
 
 def create_checkpoints_folder(agent_name: str):
     save_dir = Path('checkpoints') / agent_name / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
@@ -47,7 +48,7 @@ def main():
     connection_mode = settings["connection_mode"]
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, n_steps=20)
+    env = UnityEnv(action_space=ACTION_SPACE, n_steps=20, testing=TESTING)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
     agent_name = env.agent_name
@@ -64,7 +65,7 @@ def main():
     episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
-    for e in range(episodes):
+    for e in range(episodes+1):
         state, _ = env.reset()
         collision = 0
         goal = 0

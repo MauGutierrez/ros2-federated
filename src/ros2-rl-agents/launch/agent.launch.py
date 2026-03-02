@@ -32,38 +32,52 @@ def generate_launch_description():
             output='screen',
             parameters=[config]
         ),
-        Node(
-            package="ros2_rl_agents",
-            name="agent_2",
-            executable="test_agent",
-            output='screen',
-            parameters=[config]
-        ),
-        Node(
-            package="ros2_rl_agents",
-            name="agent_3",
-            executable="test_agent",
-            output='screen',
-            parameters=[config]
-        ),
-        Node(
-            package="ros2_rl_agents",
-            name="agent_4",
-            executable="test_agent",
-            output='screen',
-            parameters=[config]
-        )
+        # Node(
+        #     package="ros2_rl_agents",
+        #     name="agent_2",
+        #     executable="test_agent",
+        #     output='screen',
+        #     parameters=[config]
+        # ),
+        # Node(
+        #     package="ros2_rl_agents",
+        #     name="agent_3",
+        #     executable="test_agent",
+        #     output='screen',
+        #     parameters=[config]
+        # ),
+        # Node(
+        #     package="ros2_rl_agents",
+        #     name="agent_4",
+        #     executable="test_agent",
+        #     output='screen',
+        #     parameters=[config]
+        # ),
         # Node(
         #     package="ros2_rl_agents",
         #     name="agent_5",
-        #     executable="run_agent",
+        #     executable="test_agent",
         #     output='screen',
         #     parameters=[config]
         # ),
         # Node(
         #     package="ros2_rl_agents",
         #     name="agent_6",
-        #     executable="run_agent",
+        #     executable="test_agent",
+        #     output='screen',
+        #     parameters=[config]
+        # ),
+        # Node(
+        #     package="ros2_rl_agents",
+        #     name="agent_7",
+        #     executable="test_agent",
+        #     output='screen',
+        #     parameters=[config]
+        # ),
+        # Node(
+        #     package="ros2_rl_agents",
+        #     name="agent_8",
+        #     executable="test_agent",
         #     output='screen',
         #     parameters=[config]
         # )    

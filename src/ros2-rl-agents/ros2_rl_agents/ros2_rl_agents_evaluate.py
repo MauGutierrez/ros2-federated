@@ -20,7 +20,7 @@ print(f"Using CUDA: {use_cuda}")
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
 NUM_EPISODES = 200
-TESTING_LOOP = 200
+# TESTING_LOOP = 200
 BATCH_SIZE = 64
 SEED = 42
 TESTING = True
@@ -45,7 +45,7 @@ def main():
     connection_mode = settings["connection_mode"]
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, n_steps=20)
+    env = UnityEnv(action_space=ACTION_SPACE, n_steps=20, testing=TESTING)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
     agent_name = env.agent_name
@@ -69,7 +69,8 @@ def main():
         not_completed = False
 
         # Play the game!
-        for i in range(TESTING_LOOP):
+        # for i in range(TESTING_LOOP):
+        while True:
             action = agent.act(state)
             
             next_state, reward, done, info = env.step(action)
@@ -85,9 +86,9 @@ def main():
                 goal = info["goal"]
                 break
 
-            if i == TESTING_LOOP - 1:
-                not_completed = True
-                break
+            # if i == TESTING_LOOP - 1:
+            #     not_completed = True
+            #     break
         
 
         logger.log_raw(

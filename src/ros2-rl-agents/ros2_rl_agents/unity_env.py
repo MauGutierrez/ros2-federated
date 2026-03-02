@@ -137,18 +137,29 @@ class UnityNetwork():
 
 
 class UnityEnv(Node):
-    def __init__(self, action_space: int, n_steps: int) -> None:
+    def __init__(self, action_space: int, n_steps: int, testing: bool) -> None:
         super().__init__('federated_agent')
-        self.declare_parameters(
-            namespace='',
-            parameters=[
-                ('agent_name', rclpy.Parameter.Type.STRING),
-                ('checkpoint', rclpy.Parameter.Type.STRING)
-            ]
-        )
+        if testing:
+            self.declare_parameters(
+                namespace='',
+                parameters=[
+                    ('agent_name', rclpy.Parameter.Type.STRING),
+                    ('checkpoint', rclpy.Parameter.Type.STRING)
+                ]
+            )
 
-        self.agent_name = self.get_parameter('agent_name').value
-        self.checkpoint = self.get_parameter('checkpoint').value
+            self.agent_name = self.get_parameter('agent_name').value
+            self.checkpoint = self.get_parameter('checkpoint').value
+        else:
+            self.declare_parameters(
+                namespace='',
+                parameters=[
+                    ('agent_name', rclpy.Parameter.Type.STRING),
+                ]
+            )
+
+            self.agent_name = self.get_parameter('agent_name').value
+
         self.unity_obj = UnityNetwork(self.agent_name)
         # self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         # self.agent_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -240,9 +251,10 @@ class UnityEnv(Node):
         done = False
         goal = 0
         collision = 0
+        reward = 0
         if current_distance < DELTA_DISTANCE:
             done = True
-            reward = 1
+            reward = 10
             goal = 1
         # If there was a collision, it means a negative reward
         # and it has to stop this episode
@@ -250,11 +262,21 @@ class UnityEnv(Node):
             self.collisions += 1
             collision = 1
             done = True
-            reward = -1
-        elif self.initial_distance > current_distance and self.initial_angle > current_angle:
-            reward = 0.1
+            reward = -10
         else:
-            reward = -0.01
+            # Base time penalty
+            reward -= 0.01
+
+            # Cumulative progress in distance
+            progress_distance = self.initial_distance - current_distance
+            reward += 0.1 * progress_distance
+
+            progress_angle = self.initial_angle - current_angle
+            reward += 0.05 * progress_angle
+
+            # Optional milestone
+            if current_distance < self.initial_distance / 2:
+                reward += 0.5
         
         info = {
             "collision": collision,

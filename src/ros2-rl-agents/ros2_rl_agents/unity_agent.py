@@ -26,7 +26,7 @@ class UnityAgent:
         self.batch_size = 32
 
         self.exploration_rate = 1
-        self.exploration_rate_decay = 0.9992
+        self.exploration_rate_decay = 0.9999
         self.exploration_rate_min = 0.1
         self.gamma = 0.9
 
@@ -233,14 +233,26 @@ class UnityAgent:
                 if response.success is True:
                     # Update loss with new global value
                     # and set torch.no_grad() to keep the same grad_fn
+                    # with torch.no_grad():
+                    #     json_data = json.loads(response.global_value)
+                    #     new_global = json_data["weights"]
+                    #     new_loss = [torch.tensor(vector).float() for vector in new_global]
+                    #     for param, grad in zip(self.net.online.parameters(), new_loss):
+                    #         grad = grad.to(self.device)
+                    #         param.grad = grad
+                    #     self.optimizer.step()
                     with torch.no_grad():
                         json_data = json.loads(response.global_value)
-                        new_global = json_data["weights"]
-                        new_loss = [torch.tensor(vector).float() for vector in new_global]
-                        for param, grad in zip(self.net.online.parameters(), new_loss):
-                            grad = grad.to(self.device)
-                            param.grad = grad
+                        flat_global = np.array(json_data["weights"], dtype=np.float32)
+                        offset = 0
+                        for param in self.net.online.parameters():
+                            numel = param.numel()
+                            grad_slice = flat_global[offset:offset+numel]
+                            grad_tensor = torch.tensor(grad_slice, dtype=torch.float32).view_as(param).to(self.device)
+                            param.grad = grad_tensor
+                            offset += numel
                         self.optimizer.step()
+                        
                     self.federated_connection.get_logger().info("Local model has been updated with the new global.")
                 else:
                     self.federated_connection.get_logger().error("There was an error calculating the new global.")
@@ -281,7 +293,7 @@ class UnityAgent:
                         for param in self.net.online.parameters():
                             numel = param.numel()
                             grad_slice = flat_global[offset:offset+numel]
-                            grad_tensor = torch.tensor(grad_slice, dtype=torch.float32).view_as(param).to(self.device)
+                            grad_tensor = torch.tensor(grad_slice, dtype=torch.float32, device=self.device).view_as(param)
                             param.grad = grad_tensor
                             offset += numel
                         self.optimizer.step()
