@@ -14,6 +14,8 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join(share_dir, "config"), ["config/settings.json"]),
+        (os.path.join(share_dir, "config"), ["config/agents.yaml"]),
+        (os.path.join(share_dir, "launch"), ["launch/agent.launch.py"]),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

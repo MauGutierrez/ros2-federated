@@ -11,8 +11,8 @@ import json
 from cv_bridge import CvBridge
 from collections import deque
 from gym.spaces import Discrete
-from my_interfaces.srv import PositionService
-from my_interfaces.srv import InitUnityObjects
+# from my_interfaces.srv import PositionService
+# from my_interfaces.srv import InitUnityObjects
 from rclpy.node import Node
 from PIL import Image
 
@@ -65,7 +65,7 @@ DELTA_ANGLE = 10.0
 class UnityNetwork():
     def __init__(self, agent_name):
         self.agent_id = agent_name
-        self.url = "http://192.168.68.103:8080/ros"
+        self.url = "http://192.168.68.107:8080/ros"
 
     def format_response(self, response):
         data = json.loads(response)
@@ -89,12 +89,10 @@ class UnityNetwork():
 
         return payload
 
-    # TODO: get the correct fields of the response from the Go Server
     def request_init_unity_objects(self):
         payload = {
             "agent_id": self.agent_id,
-            "task": "INIT",
-            "data": ""
+            "task": "INIT"
         }
 
         resp = None
@@ -106,7 +104,7 @@ class UnityNetwork():
                 timeout=10
             )
 
-            self.format_response(resp)
+            resp = self.format_response(resp.text)
         except Exception as e:
             print("Request Failed")
             # self.get_logger().error(f"Request failed: {e}")
@@ -129,7 +127,7 @@ class UnityNetwork():
                 timeout=10
             )
 
-            self.format_response(resp)
+            resp = self.format_response(resp.text)
 
         except Exception as e:
             print("Request Failed")
@@ -138,9 +136,31 @@ class UnityNetwork():
         return resp
 
 
-class UnityEnv():
-    def __init__(self, action_space: int, agent_name:str, n_steps: int) -> None:
-        self.unity_obj = UnityNetwork(agent_name)
+class UnityEnv(Node):
+    def __init__(self, action_space: int, n_steps: int, testing: bool) -> None:
+        super().__init__('federated_agent')
+        if testing:
+            self.declare_parameters(
+                namespace='',
+                parameters=[
+                    ('agent_name', rclpy.Parameter.Type.STRING),
+                    ('checkpoint', rclpy.Parameter.Type.STRING)
+                ]
+            )
+
+            self.agent_name = self.get_parameter('agent_name').value
+            self.checkpoint = self.get_parameter('checkpoint').value
+        else:
+            self.declare_parameters(
+                namespace='',
+                parameters=[
+                    ('agent_name', rclpy.Parameter.Type.STRING),
+                ]
+            )
+
+            self.agent_name = self.get_parameter('agent_name').value
+
+        self.unity_obj = UnityNetwork(self.agent_name)
         # self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         # self.agent_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.collisions = 0
@@ -163,7 +183,7 @@ class UnityEnv():
         # Restart the flag to detect collisons
         # Get the initial observation
         response = self.unity_obj.request_init_unity_objects()
-
+        
         # Get the initial observation Image
         if response.data.success is True:
             # Start counting the time of an episode
@@ -191,7 +211,8 @@ class UnityEnv():
             self.collisions = 0
 
         else:
-            self.get_logger().warning('Initialization of Unity objects failed.')
+            print("Problem with request.")
+            # self.get_logger().warning('Initialization of Unity objects failed.')
             # observation = []
         
         # for _ in range(self.num_stack):
@@ -230,9 +251,10 @@ class UnityEnv():
         done = False
         goal = 0
         collision = 0
+        reward = 0
         if current_distance < DELTA_DISTANCE:
             done = True
-            reward = 1
+            reward = 10
             goal = 1
         # If there was a collision, it means a negative reward
         # and it has to stop this episode
@@ -240,11 +262,21 @@ class UnityEnv():
             self.collisions += 1
             collision = 1
             done = True
-            reward = -1
-        elif self.initial_distance > current_distance and self.initial_angle > current_angle:
-            reward = 0.1
+            reward = -10
         else:
-            reward = -0.01
+            # Base time penalty
+            reward -= 0.01
+
+            # Cumulative progress in distance
+            progress_distance = self.initial_distance - current_distance
+            reward += 0.1 * progress_distance
+
+            progress_angle = self.initial_angle - current_angle
+            reward += 0.05 * progress_angle
+
+            # Optional milestone
+            if current_distance < self.initial_distance / 2:
+                reward += 0.5
         
         info = {
             "collision": collision,

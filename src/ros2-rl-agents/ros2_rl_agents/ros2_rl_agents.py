@@ -12,20 +12,23 @@ from ros2_rl_agents.unity_agent import UnityAgent
 from ros2_rl_agents.metrics import MetricLogger
 from ament_index_python.packages import get_package_share_directory
 
-NAME = "agent_1"
+# NAME = "agent_1"
 use_cuda = torch.cuda.is_available()
 print(f"Using CUDA: {use_cuda}")
-save_dir = Path('checkpoints') / NAME / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
-save_dir.mkdir(parents=True)
-# checkpoint = Path('checkpoints/agent_1/2024-10-26T14-53-11/ros_net_3.chkpt')
-logger = MetricLogger(save_dir)
 
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
-NUM_EPISODES = 800
+NUM_EPISODES = 15000
 BATCH_SIZE = 64
 SEED = 42
+TESTING = False
 
+def create_checkpoints_folder(agent_name: str):
+    save_dir = Path('checkpoints') / agent_name / datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+    save_dir.mkdir(parents=True)
+
+    return save_dir
+    # checkpoint = Path('checkpoints/agent_1/2024-10-26T14-53-11/ros_net_3.chkpt')
 
 def main():
     torch.manual_seed(SEED)
@@ -45,12 +48,16 @@ def main():
     connection_mode = settings["connection_mode"]
 
     # Setup UnityEnv environment
-    env = UnityEnv(action_space=ACTION_SPACE, agent_name=NAME, n_steps=20)
+    env = UnityEnv(action_space=ACTION_SPACE, n_steps=20, testing=TESTING)
     # Get number of actions from gym action space
     n_actions = env.action_space.n
+    agent_name = env.agent_name
+
+    save_dir = create_checkpoints_folder(agent_name)
+    logger = MetricLogger(save_dir)
 
     # Setup Unity Agent
-    agent = UnityAgent(agent_name=NAME, state_dim=OBSERVATION_SPACE, action_dim=n_actions, connection_mode=connection_mode, save_dir=save_dir, checkpoint=None)   
+    agent = UnityAgent(agent_name=agent_name, state_dim=OBSERVATION_SPACE, action_dim=n_actions, connection_mode=connection_mode, save_dir=save_dir, checkpoint=None)   
     
     # Add the agent to the federated network
     agent.add_agent_to_federated_network()
@@ -58,7 +65,7 @@ def main():
     episodes = NUM_EPISODES
 
     ### for Loop that train the model num_episodes times by playing the game
-    for e in range(episodes):
+    for e in range(episodes+1):
         state, _ = env.reset()
         collision = 0
         goal = 0
@@ -67,7 +74,6 @@ def main():
 
             # 3. Show environment (the visual) [WIP]
             # env.render()
-            
             # 4. Run agent on the state
             action = agent.act(state)
             
