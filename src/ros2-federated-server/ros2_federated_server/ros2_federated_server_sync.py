@@ -174,17 +174,22 @@ class FederatedServerSync(Node):
         with self._lock:
             self._agents_counter += 1
             self._agents_ready[agent] = 0
-            agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
-            
-            self._fl_loss = self._fl_loss + agent_loss
-            self._fl_loss = np.array(self._fl_loss)
+
+            agent_loss = np.array(agent_loss, dtype=np.float32)
+            if isinstance(self._fl_loss, list) or len(self._fl_loss) == 0:
+                self._fl_loss = np.zeros_like(agent_loss, dtype=np.float32)
+
+            self._fl_loss += agent_loss
+            # self._fl_loss = self._fl_loss + agent_loss
+            # self._fl_loss = np.array(self._fl_loss)
         
         self.get_logger().info(f'add_to_global :: Counter {self._agents_counter}')
 
     def get_average(self):
         with self._lock:
             new_global = self._fl_loss / self._n_agents
-            new_arr = [vector.tolist() for vector in new_global]
+            # new_arr = [vector.tolist() for vector in new_global]
+            new_arr = new_global.tolist()
 
             message = {
                 "weights": new_arr

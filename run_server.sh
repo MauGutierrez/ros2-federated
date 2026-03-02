@@ -1,3 +1,12 @@
+echo 'Cleanning the ROS project'
+. clean.sh
+
+echo 'Compiling the ROS project'
+. build.sh
+
+echo 'Sourcing the installation'
+. install.sh
+
 echo 'Starting Federated Server'
 
 server_mode=$1

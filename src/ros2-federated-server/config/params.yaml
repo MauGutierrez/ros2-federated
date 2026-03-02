@@ -4,4 +4,4 @@ federated_server_sync:
 
 federated_server_async:
   ros__parameters:
-    time_threshold: 30
+    time_threshold: 120

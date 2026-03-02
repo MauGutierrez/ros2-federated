@@ -163,8 +163,12 @@ class FederatedServerAsync(Node):
         
         with self._lock:
             self._agents_counter += 1
-            agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
+            # agent_loss = [torch.tensor(vector).float() for vector in agent_loss]
             
+            agent_loss = np.array(agent_loss, dtype=np.float32)
+            if isinstance(self._fl_loss, list) or len(self._fl_loss) == 0:
+                self._fl_loss = np.zeros_like(agent_loss, dtype=np.float32)
+
             # First check if I have to pop the element
             if (len(self.buffer) >= self._n_agents):
                 self.buffer.popleft()
@@ -178,11 +182,10 @@ class FederatedServerAsync(Node):
     def get_average(self):
         with self._lock:
             for item in self.buffer:
-                self._fl_loss = self._fl_loss + item
-                self._fl_loss = np.array(self._fl_loss)
-
+                self._fl_loss += item
+                
             new_global = self._fl_loss / self._n_agents
-            new_arr = [vector.tolist() for vector in new_global]
+            new_arr = new_global.tolist()
 
             message = {
                 "weights": new_arr
