@@ -1,22 +1,26 @@
 agent_1:
   ros__parameters:
     agent_name: "agent_1"
-    checkpoint: "checkpoints_15000/agent_1/2026-03-01T00-41-55/ros_net_58.chkpt"
+    random_coords: true
+    checkpoint: "checkpoints_latest/agent_1/2026-04-07T21-10-48/ros_net_20000.chkpt"
 
-# agent_2:
-#   ros__parameters:
-#     agent_name: "agent_2"
-#     checkpoint: "checkpoints_sync_50_round_train/agent_2/2026-02-28T02-29-36/ros_net_1.chkpt"
+agent_2:
+  ros__parameters:
+    agent_name: "agent_2"
+    random_coords: true
+    checkpoint: "checkpoints_latest/agent_2/2026-04-07T21-10-48/ros_net_20000.chkpt"
 
-# agent_3:
-#   ros__parameters:
-#     agent_name: "agent_3"
-#     checkpoint: "checkpoints_sync_50_round_train/agent_3/2026-02-28T02-29-36/ros_net_1.chkpt"
+agent_3:
+  ros__parameters:
+    agent_name: "agent_3"
+    random_coords: true
+    checkpoint: "checkpoints_latest/agent_3/2026-04-07T21-10-48/ros_net_20000.chkpt"
 
-# agent_4:
-#   ros__parameters:
-#     agent_name: "agent_4"
-#     checkpoint: "checkpoints_sync_50_round_train/agent_4/2026-02-28T02-29-36/ros_net_1.chkpt"
+agent_4:
+  ros__parameters:
+    agent_name: "agent_4"
+    random_coords: true
+    checkpoint: "checkpoints_latest/agent_4/2026-04-07T21-10-48/ros_net_20000.chkpt"
 
 # agent_5:
 #   ros__parameters:

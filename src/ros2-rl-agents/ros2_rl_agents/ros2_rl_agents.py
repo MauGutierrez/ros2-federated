@@ -18,7 +18,7 @@ print(f"Using CUDA: {use_cuda}")
 
 OBSERVATION_SPACE = 7
 ACTION_SPACE = 3
-NUM_EPISODES = 15000
+NUM_EPISODES = 20000
 BATCH_SIZE = 64
 SEED = 42
 TESTING = False
@@ -100,7 +100,7 @@ def main():
         
 
         # 11. Update the exploration rate after every episode
-        agent.update_exploration_rate()
+        agent.update_exploration_rate(e)
         
         logger.log_raw(
             episode=e,
@@ -112,12 +112,16 @@ def main():
 
         if e % 200 == 0:    
             agent.federated_round()
+        
+        if e % 5000 == 0:
+            # 14. Save the model
+            agent.save(e)
     
     # 13. Remove agent from network
     agent.remove_agent_from_federated_network()
 
     # 14. Save the model
-    agent.save()
+    agent.save(e)
 
     # Explicity destroy nodes 
     rclpy.shutdown()

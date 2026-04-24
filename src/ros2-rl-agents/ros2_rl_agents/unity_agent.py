@@ -54,11 +54,24 @@ class UnityAgent:
         self.start_optimizer = False
 
 
-    def update_exploration_rate(self):
+    def update_exploration_rate(self, episode):
         # decrease exploration_rate
-        self.exploration_rate *= self.exploration_rate_decay
+        # self.exploration_rate *= self.exploration_rate_decay
+        # self.exploration_rate = max(self.exploration_rate_min, self.exploration_rate)
+        
+        # phase 1
+        if episode < 5000:
+            self.exploration_rate *= 0.9995
+        
+        # phase 2: hold steady
+        elif episode < 15000:
+            self.exploration_rate = max(self.exploration_rate, 0.3)
+        
+        # phase 3: decay slowly
+        else:
+            self.exploration_rate *= 0.9999
+        
         self.exploration_rate = max(self.exploration_rate_min, self.exploration_rate)
-
     
     def act(self, state):
         """
@@ -168,8 +181,8 @@ class UnityAgent:
         return (td_est.mean().item(), loss)
 
 
-    def save(self):
-        save_path = self.save_dir / f"ros_net_{int(self.curr_step // self.save_every)}.chkpt"
+    def save(self, episode):
+        save_path = self.save_dir / f"ros_net_{episode}.chkpt"
         torch.save(
             dict(
                 model=self.net.state_dict(),

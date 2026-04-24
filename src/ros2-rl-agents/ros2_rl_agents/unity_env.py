@@ -65,7 +65,7 @@ DELTA_ANGLE = 10.0
 class UnityNetwork():
     def __init__(self, agent_name):
         self.agent_id = agent_name
-        self.url = "http://192.168.68.107:8080/ros"
+        self.url = "http://192.168.68.101:8080/ros"
 
     def format_response(self, response):
         data = json.loads(response)
@@ -89,11 +89,18 @@ class UnityNetwork():
 
         return payload
 
-    def request_init_unity_objects(self):
-        payload = {
-            "agent_id": self.agent_id,
-            "task": "INIT"
-        }
+    def request_init_unity_objects(self, random_coords=None):
+        if random_coords is not None:
+            payload = {
+                "agent_id": self.agent_id,
+                "task": "INIT",
+                "data": {"random_coords": random_coords}
+            }
+        else:
+            payload = {
+                "agent_id": self.agent_id,
+                "task": "INIT",
+            }
 
         resp = None
         try:
@@ -144,21 +151,25 @@ class UnityEnv(Node):
                 namespace='',
                 parameters=[
                     ('agent_name', rclpy.Parameter.Type.STRING),
-                    ('checkpoint', rclpy.Parameter.Type.STRING)
+                    ('checkpoint', rclpy.Parameter.Type.STRING),
+                    ('random_coords', rclpy.Parameter.Type.BOOL)
                 ]
             )
 
             self.agent_name = self.get_parameter('agent_name').value
             self.checkpoint = self.get_parameter('checkpoint').value
+            self.random_coords = self.get_parameter('random_coords').value
         else:
             self.declare_parameters(
                 namespace='',
                 parameters=[
                     ('agent_name', rclpy.Parameter.Type.STRING),
+                    ('random_coords', rclpy.Parameter.Type.BOOL)
                 ]
             )
 
             self.agent_name = self.get_parameter('agent_name').value
+            self.random_coords = self.get_parameter('random_coords').value
 
         self.unity_obj = UnityNetwork(self.agent_name)
         # self.objective_coordinates = Coordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -182,7 +193,7 @@ class UnityEnv(Node):
         # Restart the initial coordinates of the agent
         # Restart the flag to detect collisons
         # Get the initial observation
-        response = self.unity_obj.request_init_unity_objects()
+        response = self.unity_obj.request_init_unity_objects(self.random_coords)
         
         # Get the initial observation Image
         if response.data.success is True:

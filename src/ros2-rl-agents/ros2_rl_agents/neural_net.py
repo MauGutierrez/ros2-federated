@@ -11,17 +11,9 @@ class Net(nn.Module):
         self.online = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Linear(32, 32),
-            nn.ReLU(),
-            nn.Linear(32, output_dim)
+            nn.Linear(64, output_dim)
         )
 
         self.target = copy.deepcopy(self.online)
