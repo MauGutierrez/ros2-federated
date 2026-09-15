@@ -1,25 +1,17 @@
 import json
-import rclpy
 import random, numpy as np
 import torch
 
 from collections import deque
 from ros2_rl_agents.neural_net import Net
-from ros2_rl_agents.federated_connection import AsyncConnection, SyncConnection
+from ros2_rl_agents.federated_connection import FederatedConnection
 
 
 class UnityAgent:
     def __init__(self, agent_name, state_dim, action_dim, connection_mode, save_dir=None, checkpoint=None, testing=None):
+        self.fed_conn = FederatedConnection()
         self.agent_name = agent_name
         self.connection_mode = connection_mode
-        if testing is None:
-            if self.connection_mode == "async":
-                self.federated_connection = AsyncConnection(self.agent_name)
-            elif self.connection_mode == "sync":
-                self.federated_connection = SyncConnection(self.agent_name)
-            else:
-                print(f"Error. Connection mode not supported.")
-                exit(0)
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.memory = deque(maxlen=10000)
@@ -213,112 +205,35 @@ class UnityAgent:
         if self.curr_step % self.sync_every == 0:
             self.sync_Q_target()
         
-        # In async mode we only have to wait for the buffer to be full
-        if self.connection_mode == "async":
-            self.update_optimizer_async(self.accumulate_gradients())
-        else:
-            self.update_optimizer_sync(self.accumulate_gradients())
+        self.update_optimizer(self.accumulate_gradients())
+    
+    
+    def update_optimizer(self, batch_gradients):
+        message = {
+            "id": self.agent_name,
+            "local_value": batch_gradients
+        }
         
-    
-    def update_optimizer_async(self, batch_gradients):
-        message = {
-            "client": self.agent_name,
-            "local_value": batch_gradients
-        }
-
-        message = json.dumps(message)
-
-        # First add them to the buffer
-        response = self.federated_connection.add_local_weights_request(message)
-        if response.success is False:
-            print("Failure")
-        else:
-            # If the addition was correct, then I need to check if the buffer is ready
-            response = self.federated_connection.wait()
-            # If the buffer is not ready, we must return 
-            if response.success is False:
-                self.federated_connection.get_logger().info("Buffer is not ready yet. Continue local training.")
-            
-                return None
-            # Otherwise, the buffer is ready and we can continue
+        response = self.fed_conn.add_local_update(message)
+        if response and response.ok:
+            response = self.fed_conn.get_global()
+            if response and response.ok:
+                with torch.no_grad():
+                    json_data = json.loads(response.content)
+                    flat_global = np.array(json_data["new_global"], dtype=np.float32).ravel()
+                    offset = 0
+                    for param in self.net.online.parameters():
+                        numel = param.numel()
+                        grad_slice = flat_global[offset:offset+numel]
+                        grad_tensor = torch.tensor(grad_slice, dtype=torch.float32, device=self.device).view_as(param)
+                        param.grad = grad_tensor
+                        offset += numel
+                    self.optimizer.step()
+                return True
             else:
-                response = self.federated_connection.get_new_weights_request(self.agent_name)
-                if response.success is True:
-                    # Update loss with new global value
-                    # and set torch.no_grad() to keep the same grad_fn
-                    # with torch.no_grad():
-                    #     json_data = json.loads(response.global_value)
-                    #     new_global = json_data["weights"]
-                    #     new_loss = [torch.tensor(vector).float() for vector in new_global]
-                    #     for param, grad in zip(self.net.online.parameters(), new_loss):
-                    #         grad = grad.to(self.device)
-                    #         param.grad = grad
-                    #     self.optimizer.step()
-                    with torch.no_grad():
-                        json_data = json.loads(response.global_value)
-                        flat_global = np.array(json_data["weights"], dtype=np.float32)
-                        offset = 0
-                        for param in self.net.online.parameters():
-                            numel = param.numel()
-                            grad_slice = flat_global[offset:offset+numel]
-                            grad_tensor = torch.tensor(grad_slice, dtype=torch.float32).view_as(param).to(self.device)
-                            param.grad = grad_tensor
-                            offset += numel
-                        self.optimizer.step()
-                        
-                    self.federated_connection.get_logger().info("Local model has been updated with the new global.")
-                else:
-                    self.federated_connection.get_logger().error("There was an error calculating the new global.")
-                    return None
-    
-    
-    def update_optimizer_sync(self, batch_gradients):
-        message = {
-            "client": self.agent_name,
-            "local_value": batch_gradients
-        }
-
-        message = json.dumps(message)
-
-        response = self.federated_connection.add_local_weights_request(message)
-        if response.success is False:
-            print("Failure")
+                return False
         else:
-            while rclpy.ok():
-                response = self.federated_connection.get_new_weights_request(self.agent_name)
-                if response is None:
-                    continue
-                elif response.success is True:
-                    # Update loss with new global value
-                    # and set torch.no_grad() to keep the same grad_fn
-                    # with torch.no_grad():
-                    #     json_data = json.loads(response.global_value)
-                    #     new_global = json_data["weights"]
-                    #     new_loss = [torch.tensor(vector).float() for vector in new_global]
-                    #     for param, grad in zip(self.net.online.parameters(), new_loss):
-                    #         grad = grad.to(self.device)
-                    #         param.grad = grad
-                    #     self.optimizer.step()
-                    with torch.no_grad():
-                        json_data = json.loads(response.global_value)
-                        flat_global = np.array(json_data["weights"], dtype=np.float32)
-                        offset = 0
-                        for param in self.net.online.parameters():
-                            numel = param.numel()
-                            grad_slice = flat_global[offset:offset+numel]
-                            grad_tensor = torch.tensor(grad_slice, dtype=torch.float32, device=self.device).view_as(param)
-                            param.grad = grad_tensor
-                            offset += numel
-                        self.optimizer.step()
-                    break
-            
-            while rclpy.ok():
-                response = self.federated_connection.wait()
-                if response is None:
-                    continue
-                elif response.success is True:
-                    break
-
+            return False
     
     def accumulate_gradients(self):
         self.optimizer.zero_grad()
@@ -343,11 +258,8 @@ class UnityAgent:
 
 
     def add_agent_to_federated_network(self):
-        response = self.federated_connection.add_agent_to_network(self.agent_name)
-        if response.success is False:
-            exit(0)
-    
-    def remove_agent_from_federated_network(self):
-        response = self.federated_connection.remove_agent_from_network(self.agent_name)
-        if response.success is False:
-            exit(0)
+        response = self.fed_conn.add_agent_to_network()
+        if response and response.ok:
+            return True
+        else:
+            return False

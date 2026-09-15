@@ -10,7 +10,7 @@ class MetricLogger():
         with open(self.save_log, "w") as f:
             f.write(
                 f"{'Episode':>8}{'Step':>8}{'Epsilon':>10}{'Reward':>15}"
-                f"{'Collisions':>15}{'Goal':>15}{'Not completed':>15}"
+                f"{'Collisions':>15}{'Goal':>15}{'Not_completed':>15}"
                 f"{'Length':>15}{'Loss':>15}{'QValue':>15}"
                 f"{'TimeDelta':>15}{'Time':>20}\n"
             )
@@ -104,7 +104,7 @@ class MetricLogger():
             f"Mean Reward {mean_ep_reward} - "
             f"Collisions {self.ep_collisions} - "
             f"Goal {self.ep_goals} - "
-            f"Not completed {self.not_completed} - "
+            f"Not_completed {self.not_completed} - "
             f"Mean Length {mean_ep_length} - "
             f"Mean Loss {mean_ep_loss} - "
             f"Mean Q Value {mean_ep_q} - "
@@ -162,7 +162,7 @@ class MetricLogger():
             f"Reward {self.curr_ep_reward} - "
             f"Collisions {self.ep_collisions} - "
             f"Goal {self.ep_goals} - "
-            f"Not completed {self.not_completed} - "
+            f"Not_completed {self.not_completed} - "
             f"Length {self.curr_ep_length} - "
             f"Loss {ep_avg_loss} - "
             f"Q Value {ep_avg_q} - "

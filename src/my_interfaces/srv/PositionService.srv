@@ -1,7 +1,0 @@
-uint8 action
----
-sensor_msgs/Image unity_image
-PosRot output
-float32 vision_angle
-bool collision
-bool success

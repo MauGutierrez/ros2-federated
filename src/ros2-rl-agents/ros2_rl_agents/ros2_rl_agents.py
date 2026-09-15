@@ -34,9 +34,7 @@ def main():
     torch.manual_seed(SEED)
     np.random.seed(SEED)
     random.seed(SEED)
-    
-    # Init ROS
-    rclpy.init()
+
 
     # Load general settings saved in json file
     settings_path = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
@@ -122,9 +120,6 @@ def main():
 
     # 14. Save the model
     agent.save(e)
-
-    # Explicity destroy nodes 
-    rclpy.shutdown()
         
 
 if __name__ == '__main__':

@@ -3,7 +3,6 @@ import math
 import numpy as np
 import random
 import requests
-import rclpy
 import time
 import array as arr
 import json
@@ -11,9 +10,6 @@ import json
 from cv_bridge import CvBridge
 from collections import deque
 from gym.spaces import Discrete
-# from my_interfaces.srv import PositionService
-# from my_interfaces.srv import InitUnityObjects
-from rclpy.node import Node
 from PIL import Image
 
 import torch
@@ -52,15 +48,6 @@ class UnityResponse:
 DELTA_DISTANCE = 2.0000
 DELTA_ANGLE = 10.0
 
-# class Coordinates():
-    
-#     def __init__(self, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z) -> None:
-#         self.pos_x = pos_x
-#         self.pos_y = pos_y
-#         self.pos_z = pos_z
-#         self.rot_x = rot_x
-#         self.rot_y = rot_y
-#         self.rot_z = rot_z
 
 class UnityNetwork():
     def __init__(self, agent_name):
@@ -143,7 +130,7 @@ class UnityNetwork():
         return resp
 
 
-class UnityEnv(Node):
+class UnityEnv():
     def __init__(self, action_space: int, n_steps: int, testing: bool) -> None:
         super().__init__('federated_agent')
         if testing:

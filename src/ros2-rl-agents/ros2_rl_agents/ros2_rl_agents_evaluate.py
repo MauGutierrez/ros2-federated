@@ -3,7 +3,6 @@ import json
 import numpy as np
 import os
 import random
-import rclpy
 import torch
 
 from pathlib import Path
@@ -33,9 +32,6 @@ def create_checkpoints_folder(agent_name: str):
     return save_dir
 
 def main():
-    # Init ROS
-    rclpy.init()
-
     settings_path = os.path.join(get_package_share_directory('ros2_rl_agents'), 'config/settings.json')
     
     with open(settings_path, 'r') as file:
@@ -102,11 +98,7 @@ def main():
         
         # 11. Update the exploration rate after every episode
         # agent.update_exploration_rate()
-    
 
-    # Explicity destroy nodes 
-    rclpy.shutdown()
-        
 
 if __name__ == '__main__':
     main()
